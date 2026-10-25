@@ -1,0 +1,11 @@
+{
+    "dbmlERDPreviewer.preferredTheme": "dark",
+    "conventionalCommits.scopes": [
+        "usuarios",
+        "peliculas",
+        "reservas",
+        "database",
+        "Docker",
+        "frontend"
+    ]
+}
