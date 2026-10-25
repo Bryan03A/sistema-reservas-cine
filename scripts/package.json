@@ -1,0 +1,1 @@
+{ "name": "cine-scripts", "private": true, "type": "module", "devDependencies": { "jsdom": "^26.0.0" } }
