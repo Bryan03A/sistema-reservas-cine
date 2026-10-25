@@ -1,0 +1,24 @@
+
+flowchart TB
+    U["Cliente / Operador / Administrador"]
+    FE["Frontend React + Vite"]
+    AU["Microservicio Usuarios<br/>Node.js / Express<br/>Puerto 3001"]
+    PE["Microservicio Películas<br/>Ruby on Rails API<br/>Puerto 3002"]
+    RE["Microservicio Reservas<br/>Python / FastAPI<br/>Puerto 3003"]
+
+    DBU[("PostgreSQL<br/>cine_usuarios")]
+    DBP[("PostgreSQL<br/>cine_peliculas")]
+    DBR[("PostgreSQL<br/>cine_reservas")]
+
+    U --> FE
+    FE -->|"REST / JWT"| AU
+    FE -->|"REST / JWT"| PE
+    FE -->|"REST / JWT"| RE
+
+    AU --> DBU
+    PE --> DBP
+    RE --> DBR
+
+    RE -->|"Consultar funciones,<br/>asientos y precios"| PE
+    PE -->|"Auditoria administrativa"| AU
+    RE -->|"Auditoria de reservas"| AU

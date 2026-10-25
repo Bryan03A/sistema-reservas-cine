@@ -1,0 +1,60 @@
+
+services:
+  db-usuarios:
+    image: postgres:16
+    container_name: cine-db-usuarios
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${USUARIOS_DB}
+    ports:
+      - "5433:5432"
+    volumes:
+      - usuarios_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${USUARIOS_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  db-peliculas:
+    image: postgres:16
+    container_name: cine-db-peliculas
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${PELICULAS_DB}
+    ports:
+      - "5434:5432"
+    volumes:
+      - peliculas_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${PELICULAS_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  db-reservas:
+    image: postgres:16
+    container_name: cine-db-reservas
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${RESERVAS_DB}
+    ports:
+      - "5435:5432"
+    volumes:
+      - reservas_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${RESERVAS_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  usuarios_data:
+  peliculas_data:
+  reservas_data:

@@ -1,0 +1,36 @@
+
+openapi: 3.0.3
+
+info:
+  title: Microservicio de Usuarios
+  version: 1.0.0
+  description: Registro, autenticacion, usuarios, roles y auditoria
+
+servers:
+  - url: http://localhost:3001/api/v1
+
+paths:
+  /auth/register:
+    post:
+      summary: Registrar un cliente
+      responses:
+        "201":
+          description: Cliente registrado
+        "400":
+          description: Datos invalidos
+
+  /oauth/token:
+    post:
+      summary: Iniciar sesion y obtener JWT
+      responses:
+        "200":
+          description: Token generado
+        "401":
+          description: Credenciales invalidas
+
+  /roles:
+    get:
+      summary: Consultar roles
+      responses:
+        "200":
+          description: Lista de roles

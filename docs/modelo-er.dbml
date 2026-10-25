@@ -1,0 +1,258 @@
+
+Project Sistema_Reservas_Cine {
+  Note: 'Modelo ER conceptual integrado de reservas de cine'
+}
+
+// ======================================================
+// 1. USUARIOS, ROLES Y CLIENTES
+// ======================================================
+
+Table rol {
+  id int [pk, increment]
+  nombre varchar(30) [not null, unique,
+    note: 'ADMINISTRADOR | OPERADOR | CLIENTE']
+  descripcion varchar(150)
+  estado varchar(10) [not null, default: 'ACTIVO']
+}
+
+Table usuario {
+  id int [pk, increment]
+  username varchar(50) [not null, unique]
+  password_hash varchar(255) [not null]
+  rol_id int [not null]
+  estado varchar(10) [not null, default: 'ACTIVO']
+  ultima_conexion timestamp
+  created_at timestamp [not null, default: `now()`]
+}
+
+Table cliente {
+  id int [pk, increment]
+  usuario_id int [not null, unique]
+  primer_nombre varchar(50) [not null]
+  segundo_nombre varchar(50)
+  apellido varchar(50) [not null]
+  dni varchar(13) [not null, unique]
+  nacionalidad varchar(50)
+  direccion varchar(200)
+  telefono varchar(15)
+  correo varchar(120) [not null, unique]
+}
+
+// ======================================================
+// 2. CATALOGO DE PELICULAS
+// ======================================================
+
+Table pelicula {
+  id int [pk, increment]
+  nombre varchar(150) [not null]
+  descripcion text
+  genero varchar(40) [not null]
+  duracion_min int [not null]
+  clasificacion varchar(10) [not null,
+    note: 'TP | +12 | +15 | +18']
+  estado varchar(10) [not null, default: 'ACTIVA']
+  created_at timestamp
+  updated_at timestamp
+}
+
+// ======================================================
+// 3. SALAS Y ESTRUCTURA DE ASIENTOS
+// ======================================================
+
+Table sala {
+  id int [pk, increment]
+  nombre varchar(50) [not null, unique]
+  estado varchar(10) [not null, default: 'ACTIVA']
+}
+
+Table seccion {
+  id int [pk, increment]
+  sala_id int [not null]
+  nombre varchar(50) [not null]
+  descripcion varchar(150)
+  tipo varchar(10) [not null, note: 'VIP | DBOX | GENERAL']
+  precio decimal(6,2) [not null]
+  capacidad int [not null]
+  num_filas int
+  asientos_por_fila int
+
+  indexes {
+    (sala_id, nombre) [unique]
+  }
+}
+
+Table fila {
+  id int [pk, increment]
+  seccion_id int [not null]
+  letra char(1) [not null]
+
+  indexes {
+    (seccion_id, letra) [unique]
+  }
+}
+
+Table asiento {
+  id int [pk, increment]
+  fila_id int [not null]
+  numero int [not null]
+
+  indexes {
+    (fila_id, numero) [unique]
+  }
+}
+
+// ======================================================
+// 4. FUNCIONES CINEMATOGRAFICAS
+// ======================================================
+
+Table funcion {
+  id int [pk, increment]
+  pelicula_id int [not null]
+  sala_id int [not null]
+  fecha date [not null]
+  hora_inicio time [not null]
+  hora_fin time [not null]
+  estado varchar(15) [not null, default: 'ACTIVA',
+    note: 'ACTIVA | CANCELADA | FINALIZADA']
+
+  indexes {
+    (sala_id, fecha, hora_inicio)
+    (pelicula_id, fecha)
+  }
+}
+
+// ======================================================
+// 5. RESERVAS
+// ======================================================
+
+Table reserva {
+  id int [pk, increment]
+  codigo varchar(30) [not null, unique]
+
+  cliente_id int [not null]
+  funcion_id int [not null]
+
+  fecha_reserva timestamp [not null, default: `now()`]
+  expira_en timestamp
+  estado varchar(15) [not null, default: 'PENDIENTE',
+    note: 'PENDIENTE | CONFIRMADA | CANCELADA | EXPIRADA | USADA']
+
+  cantidad_boletos int [not null]
+  total decimal(8,2) [not null]
+  moneda char(3) [not null, default: 'USD']
+
+  confirmada_en timestamp
+  cancelada_en timestamp
+}
+
+// ======================================================
+// 6. ASIENTOS POR FUNCION
+// ======================================================
+
+Table asiento_funcion {
+  id int [pk, increment]
+
+  funcion_id int [not null]
+  asiento_id int [not null]
+  reserva_id int
+
+  estado varchar(12) [not null, default: 'DISPONIBLE',
+    note: 'DISPONIBLE | BLOQUEADO | VENDIDO']
+
+  bloqueado_hasta timestamp
+
+  indexes {
+    (funcion_id, asiento_id) [unique]
+    (reserva_id)
+    (estado, bloqueado_hasta)
+  }
+}
+
+// ======================================================
+// 7. BOLETOS
+// ======================================================
+
+Table boleto {
+  id int [pk, increment]
+  reserva_id int [not null]
+  asiento_funcion_id int [not null, unique]
+  asiento_id int [not null]
+
+  precio decimal(6,2) [not null]
+  codigo_qr varchar(150) [not null, unique]
+
+  estado varchar(10) [not null, default: 'ACTIVO',
+    note: 'ACTIVO | USADO | ANULADO']
+
+  emitido_en timestamp [not null, default: `now()`]
+  usado_en timestamp
+
+  indexes {
+    (reserva_id, asiento_id) [unique]
+  }
+}
+
+// ======================================================
+// 8. AUDITORIA DE ACCIONES ADMINISTRATIVAS
+// ======================================================
+
+Table registro_auditoria {
+  id int [pk, increment]
+  usuario_id int [not null]
+  accion varchar(30) [not null,
+    note: 'CREAR | MODIFICAR | DESACTIVAR | ACTIVAR']
+  entidad varchar(50) [not null]
+  entidad_id int
+  descripcion text
+  fecha_accion timestamp [not null, default: `now()`]
+}
+
+// ======================================================
+// RELACIONES: ROLES, USUARIOS Y CLIENTES
+// ======================================================
+
+Ref: rol.id < usuario.rol_id
+Ref: usuario.id - cliente.usuario_id
+
+// ======================================================
+// RELACIONES: SALAS Y ASIENTOS
+// ======================================================
+
+Ref: sala.id < seccion.sala_id
+Ref: seccion.id < fila.seccion_id
+Ref: fila.id < asiento.fila_id
+
+// ======================================================
+// RELACIONES: PELICULAS Y FUNCIONES
+// ======================================================
+
+Ref: pelicula.id < funcion.pelicula_id
+Ref: sala.id < funcion.sala_id
+
+// ======================================================
+// RELACIONES: CLIENTES Y RESERVAS
+// ======================================================
+
+Ref: cliente.id < reserva.cliente_id
+Ref: funcion.id < reserva.funcion_id
+
+// ======================================================
+// RELACIONES: DISPONIBILIDAD DE ASIENTOS
+// ======================================================
+
+Ref: funcion.id < asiento_funcion.funcion_id
+Ref: asiento.id < asiento_funcion.asiento_id
+Ref: reserva.id < asiento_funcion.reserva_id
+
+// ======================================================
+// RELACIONES: BOLETOS
+// ======================================================
+
+Ref: reserva.id < boleto.reserva_id
+Ref: asiento_funcion.id - boleto.asiento_funcion_id
+
+// ======================================================
+// RELACIONES: AUDITORIA
+// ======================================================
+
+Ref: usuario.id < registro_auditoria.usuario_id

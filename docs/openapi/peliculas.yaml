@@ -1,0 +1,762 @@
+
+openapi: 3.0.3
+
+info:
+  title: Microservicio de Películas
+  version: 1.0.0
+  description: >
+    API para administrar películas, funciones, salas, asientos y estructuras
+    de asientos del sistema de reservas de cine.
+
+servers:
+  - url: http://localhost:3001
+    description: Servidor local de Rails
+
+tags:
+  - name: Salud
+    description: Estado del servicio
+  - name: Películas
+    description: Consulta y administración de películas
+  - name: Funciones
+    description: Consulta y administración de funciones
+  - name: Salas
+    description: Consulta de salas y sus asientos
+  - name: Asientos
+    description: Administración del estado de los asientos
+  - name: Integración interna
+    description: Consultas internas entre microservicios
+  - name: Seguridad
+    description: Endpoints de prueba de autenticación
+
+security:
+  - BearerAuth: []
+
+paths:
+  /up:
+    get:
+      tags: [Salud]
+      summary: Comprobar el estado del servicio
+      security: []
+      responses:
+        "200":
+          description: Servicio disponible
+
+  /peliculas:
+    get:
+      tags: [Películas]
+      summary: Consultar películas mediante la ruta pública
+      security: []
+      responses:
+        "200":
+          description: Lista de películas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Pelicula"
+
+  /peliculas/{id}:
+    get:
+      tags: [Películas]
+      summary: Consultar una película mediante la ruta pública
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Película encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pelicula"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+
+  /api/protegido:
+    get:
+      tags: [Seguridad]
+      summary: Probar el acceso a un recurso protegido
+      responses:
+        "200":
+          description: Acceso autorizado
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+
+  /api/peliculas:
+    get:
+      tags: [Películas]
+      summary: Consultar películas
+      description: Requiere autenticación JWT y rol ADMINISTRADOR.
+      parameters:
+        - name: nombre
+          in: query
+          required: false
+          description: Filtra por coincidencia parcial del nombre.
+          schema:
+            type: string
+        - name: genero
+          in: query
+          required: false
+          description: Filtra por género.
+          schema:
+            type: string
+        - name: clasificacion
+          in: query
+          required: false
+          description: Filtra por clasificación.
+          schema:
+            type: string
+        - name: fecha
+          in: query
+          required: false
+          description: Filtra películas con funciones en la fecha indicada.
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Lista de películas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Pelicula"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "422":
+          $ref: "#/components/responses/DatosInvalidos"
+
+    post:
+      tags: [Películas]
+      summary: Registrar una película
+      description: Requiere autenticación JWT y rol ADMINISTRADOR.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pelicula]
+              properties:
+                pelicula:
+                  $ref: "#/components/schemas/PeliculaEntrada"
+      responses:
+        "201":
+          description: Película registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pelicula"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "422":
+          $ref: "#/components/responses/DatosInvalidos"
+
+  /api/peliculas/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Películas]
+      summary: Consultar una película por su identificador
+      responses:
+        "200":
+          description: Película encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pelicula"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+
+    put:
+      tags: [Películas]
+      summary: Actualizar una película
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [pelicula]
+              properties:
+                pelicula:
+                  $ref: "#/components/schemas/PeliculaEntrada"
+      responses:
+        "200":
+          description: Película actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pelicula"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "422":
+          $ref: "#/components/responses/DatosInvalidos"
+
+  /api/peliculas/{id}/estado:
+    patch:
+      tags: [Películas]
+      summary: Cambiar el estado de una película
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [estado]
+              properties:
+                estado:
+                  type: string
+                  enum: [ACTIVA, INACTIVA]
+      responses:
+        "200":
+          description: Estado actualizado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mensaje:
+                    type: string
+                  pelicula:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      nombre:
+                        type: string
+                      estado:
+                        type: string
+                        enum: [ACTIVA, INACTIVA]
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "422":
+          $ref: "#/components/responses/DatosInvalidos"
+
+  /api/funciones:
+    get:
+      tags: [Funciones]
+      summary: Consultar funciones
+      parameters:
+        - name: fecha
+          in: query
+          required: false
+          description: Filtra por fecha de la función.
+          schema:
+            type: string
+            format: date
+        - name: pelicula_id
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: sala_id
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lista de funciones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Funcion"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "422":
+          $ref: "#/components/responses/DatosInvalidos"
+
+    post:
+      tags: [Funciones]
+      summary: Crear una función
+      description: >
+        Requiere autenticación JWT y rol ADMINISTRADOR.
+        La película y la sala deben existir y estar activas.
+        No se permite solapamiento con otra función activa de la misma sala.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [funcion]
+              properties:
+                funcion:
+                  $ref: "#/components/schemas/FuncionEntrada"
+      responses:
+        "201":
+          description: Función creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Funcion"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "409":
+          description: La sala ya tiene una función en ese horario
+        "422":
+          $ref: "#/components/responses/DatosInvalidos"
+
+  /api/funciones/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Funciones]
+      summary: Consultar una función por su identificador
+      responses:
+        "200":
+          description: Función encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Funcion"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+
+    put:
+      tags: [Funciones]
+      summary: Actualizar una función
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [funcion]
+              properties:
+                funcion:
+                  $ref: "#/components/schemas/FuncionEntrada"
+      responses:
+        "200":
+          description: Función actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Funcion"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "409":
+          description: La sala ya tiene una función en ese horario
+        "422":
+          $ref: "#/components/responses/DatosInvalidos"
+
+  /api/funciones/{id}/cancelar:
+    patch:
+      tags: [Funciones]
+      summary: Cancelar una función
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Función cancelada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  mensaje:
+                    type: string
+                  funcion:
+                    $ref: "#/components/schemas/Funcion"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "422":
+          $ref: "#/components/responses/DatosInvalidos"
+
+  /api/funciones/{id}/estructura:
+    get:
+      tags: [Funciones]
+      summary: Consultar la estructura de asientos de una función
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      responses:
+        "200":
+          description: Estructura de la función obtenida
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EstructuraFuncion"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+
+  /api/salas:
+    get:
+      tags: [Salas]
+      summary: Consultar salas, secciones, filas y asientos
+      responses:
+        "200":
+          description: Lista de salas con su estructura
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Sala"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+
+  /api/asientos/{id}/estado:
+    patch:
+      tags: [Asientos]
+      summary: Cambiar el estado de un asiento
+      parameters:
+        - $ref: "#/components/parameters/Id"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [estado]
+              properties:
+                estado:
+                  type: string
+                  enum: [ACTIVO, INACTIVO]
+      responses:
+        "200":
+          description: Estado del asiento actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asiento"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "403":
+          $ref: "#/components/responses/Prohibido"
+        "404":
+          $ref: "#/components/responses/NoEncontrado"
+        "422":
+          $ref: "#/components/responses/DatosInvalidos"
+
+  /internal/funciones/detalle:
+    get:
+      tags: [Integración interna]
+      summary: Consultar detalles de varias funciones
+      description: >
+        Endpoint interno para consultar varias funciones mediante una lista
+        de identificadores separados por comas.
+      parameters:
+        - name: ids
+          in: query
+          required: true
+          description: Identificadores separados por comas, por ejemplo 1,2,3.
+          schema:
+            type: string
+            example: "1,2,3"
+      responses:
+        "200":
+          description: Detalles de las funciones encontradas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DetalleFuncionInterna"
+        "401":
+          $ref: "#/components/responses/NoAutenticado"
+        "422":
+          $ref: "#/components/responses/DatosInvalidos"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Introduce el token JWT válido. No escribas la palabra Bearer
+        en el campo si la interfaz la agrega automáticamente.
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      description: Identificador del recurso.
+      schema:
+        type: integer
+        minimum: 1
+
+  responses:
+    NoAutenticado:
+      description: Token JWT ausente, inválido o expirado.
+    Prohibido:
+      description: El usuario autenticado no tiene el rol requerido.
+    NoEncontrado:
+      description: Recurso no encontrado.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    DatosInvalidos:
+      description: Datos de entrada inválidos o error de validación.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        detalles:
+          type: array
+          items:
+            type: string
+
+    Pelicula:
+      type: object
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        descripcion:
+          type: string
+          nullable: true
+        genero:
+          type: string
+        duracion_min:
+          type: integer
+        clasificacion:
+          type: string
+        estado:
+          type: string
+          enum: [ACTIVA, INACTIVA]
+
+    PeliculaEntrada:
+      type: object
+      required:
+        - nombre
+        - genero
+        - duracion_min
+        - clasificacion
+      properties:
+        nombre:
+          type: string
+        descripcion:
+          type: string
+        genero:
+          type: string
+        duracion_min:
+          type: integer
+          minimum: 1
+        clasificacion:
+          type: string
+
+    Funcion:
+      type: object
+      properties:
+        id:
+          type: integer
+        pelicula_id:
+          type: integer
+        sala_id:
+          type: integer
+        fecha:
+          type: string
+          format: date
+        hora_inicio:
+          type: string
+          example: "14:00"
+        hora_fin:
+          type: string
+          example: "16:00"
+        estado:
+          type: string
+
+    FuncionEntrada:
+      type: object
+      required:
+        - pelicula_id
+        - sala_id
+        - fecha
+        - hora_inicio
+        - hora_fin
+      properties:
+        pelicula_id:
+          type: integer
+        sala_id:
+          type: integer
+        fecha:
+          type: string
+          format: date
+        hora_inicio:
+          type: string
+          example: "14:00"
+        hora_fin:
+          type: string
+          example: "16:00"
+
+    Sala:
+      type: object
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        estado:
+          type: string
+        secciones:
+          type: array
+          items:
+            $ref: "#/components/schemas/Seccion"
+
+    Seccion:
+      type: object
+      properties:
+        id:
+          type: integer
+        nombre:
+          type: string
+        tipo:
+          type: string
+        precio:
+          type: number
+          format: double
+        capacidad:
+          type: integer
+        filas:
+          type: array
+          items:
+            $ref: "#/components/schemas/Fila"
+
+    Fila:
+      type: object
+      properties:
+        id:
+          type: integer
+        letra:
+          type: string
+        asientos:
+          type: array
+          items:
+            $ref: "#/components/schemas/Asiento"
+
+    Asiento:
+      type: object
+      properties:
+        id:
+          type: integer
+        numero:
+          type: integer
+        estado:
+          type: string
+
+    EstructuraFuncion:
+      type: object
+      properties:
+        funcion:
+          type: object
+          properties:
+            id:
+              type: integer
+            fecha:
+              type: string
+              format: date
+            hora_inicio:
+              type: string
+            hora_fin:
+              type: string
+            estado:
+              type: string
+        pelicula:
+          type: object
+          properties:
+            id:
+              type: integer
+            nombre:
+              type: string
+            genero:
+              type: string
+            duracion_min:
+              type: integer
+            clasificacion:
+              type: string
+        sala:
+          type: object
+          properties:
+            id:
+              type: integer
+            nombre:
+              type: string
+            estado:
+              type: string
+        secciones:
+          type: array
+          items:
+            $ref: "#/components/schemas/Seccion"
+        total_asientos:
+          type: integer
+
+    DetalleFuncionInterna:
+      type: object
+      properties:
+        id:
+          type: integer
+        pelicula_id:
+          type: integer
+        pelicula:
+          type: string
+        sala_id:
+          type: integer
+        sala:
+          type: string
+        fecha:
+          type: string
+          format: date
+        hora_inicio:
+          type: string
+        hora_fin:
+          type: string
+        estado:
+          type: string

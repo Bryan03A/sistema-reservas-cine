@@ -1,0 +1,132 @@
+{
+  "info": {
+    "name": "Sistema de Reservas de Cine - API",
+    "description": "Colección de pruebas para autenticación, clientes, usuarios y auditoría.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "admin_token",
+      "value": ""
+    },
+    {
+      "key": "operador_token",
+      "value": ""
+    },
+    {
+      "key": "cliente_token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Clientes",
+      "item": [
+        {
+          "name": "Consultar mi perfil",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cliente_token}}"
+              }
+            ],
+            "url": "{{base_url}}/clientes/me"
+          }
+        },
+        {
+          "name": "Actualizar mi perfil",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{cliente_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"primerNombre\": \"Ana\",\n  \"segundoNombre\": \"Maria\",\n  \"apellido\": \"Lopez\",\n  \"nacionalidad\": \"Ecuatoriana\",\n  \"direccion\": \"Quito\",\n  \"telefono\": \"0991234567\"\n}"
+            },
+            "url": "{{base_url}}/clientes/me"
+          }
+        },
+        {
+          "name": "Listar clientes como administrador",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/clientes"
+          }
+        },
+        {
+          "name": "Listar clientes como operador",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{operador_token}}"
+              }
+            ],
+            "url": "{{base_url}}/clientes"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Usuarios",
+      "item": [
+        {
+          "name": "Listar usuarios",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/usuarios"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auditoría",
+      "item": [
+        {
+          "name": "Consultar auditoría",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/auditoria"
+          }
+        }
+      ]
+    }
+  ]
+}
