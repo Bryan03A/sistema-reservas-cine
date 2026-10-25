@@ -1,0 +1,20 @@
+{
+  "name": "cine-reservas",
+  "version": "0.1.0",
+  "description": "Microservicio de Reservas: disponibilidad, bloqueo de asientos, boletos con QR y reportes",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": { "start": "node src/server.js", "dev": "node --watch src/server.js" },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "jose": "^5.9.6",
+    "pg": "^8.13.1",
+    "pg-hstore": "^2.3.4",
+    "qrcode": "^1.5.4",
+    "sequelize": "^6.37.5",
+    "swagger-ui-express": "^5.0.1",
+    "zod": "^3.24.1"
+  }
+}

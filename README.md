@@ -1,123 +1,110 @@
-# Sistema de Gestión de Reservas de Películas
+# Cine Andino: sistema de reservas de películas (demo funcional)
 
-## 1. Descripción del proyecto
+Aplicación distribuida con **3 microservicios heterogéneos**, una base PostgreSQL por servicio y un frontend. Es un solo programa: los servicios se validan tokens entre sí, comparten un contrato (`docs/contrato.md`) y el frontend los consume por REST.
 
-Sistema web para la gestión integral de reservas de boletos de cine, desarrollado mediante una arquitectura de microservicios. La aplicación permite gestionar usuarios, películas, funciones, salas, secciones, filas, asientos y reservas, así como generar boletos electrónicos con códigos QR.
+```
+                     ┌──────────────── Frontend (5173) ────────────────┐
+                     │  HTML + JS: cartelera, mapa de asientos, QR,    │
+                     │  panel del personal, reportes                   │
+                     └──────┬───────────────┬───────────────┬──────────┘
+                            ▼               ▼               ▼
+              ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+              │ Usuarios 3001   │  │ Películas 3002  │  │ Reservas 3003   │
+              │ Node + Express  │  │ Python+FastAPI  │  │ Node + Express  │
+              │ OAuth2 · JWT    │◄─┤ JWKS, auditoría │◄─┤ JWKS, auditoría │
+              │ roles · auditoría│  │ funciones, salas│──►│ estructura/precios│
+              └───────┬─────────┘  └───────┬─────────┘  └───────┬─────────┘
+                 db_usuarios           db_peliculas          db_reservas
+```
 
-El sistema contempla distintos niveles de acceso según los roles de usuario y proporciona herramientas de consulta y generación de reportes para clientes y administradores.
+## Ejecutar con Docker (recomendado)
+```bash
+cp .env.example .env
+docker compose up --build
+```
+- Aplicación: http://localhost:5173
+- Swagger: http://localhost:3001/docs · http://localhost:3002/docs · http://localhost:3003/docs
 
-## 2. Objetivo
+> Los `Dockerfile` y `docker-compose.yml` están escritos pero **no pude ejecutarlos en el entorno donde generé el demo** (no tenía Docker). La lógica sí se probó ejecutando los servicios directamente. Si algo falla al construir, dime el mensaje y lo corregimos.
 
-Desarrollar un sistema de gestión de reservas de películas que automatice el proceso de consulta de funciones, selección de asientos, creación y administración de reservas, emisión de boletos electrónicos con códigos QR y generación de reportes.
+## Ejecutar sin Docker
+Requisitos: Node 20+, Python 3.11+ y PostgreSQL con tres bases vacías: `db_usuarios`, `db_peliculas`, `db_reservas`.
+```bash
+cd backend/usuarios  && npm install && cd ../reservas && npm install && cd ..
+cd peliculas && python -m venv .venv && .venv/bin/pip install -r requirements.txt && cd ../..
+PG_BASE=usuario:clave@localhost:5432 ./scripts/start-local.sh      # arranca los 3 servicios
+cd frontend && python -m http.server 5173                         # sirve el frontend
+./scripts/start-local.sh stop                                     # detiene los servicios
+```
+Al arrancar por primera vez, cada servicio crea sus tablas y carga su **archivo semilla** (`seed.js` / `seed.py`).
+Si la semilla falla, usa los scripts de respaldo de `sql/` (crean y pueblan cada base).
 
-## 3. Alcance
+## Usuarios de demostración
+| Usuario | Contraseña | Rol |
+|---|---|---|
+| `admin` | `Admin123*` | Administrador |
+| `operador` | `Operador123*` | Operador |
+| `cliente1` | `Cliente123*` | Cliente |
+| `cliente2` | `Cliente123*` | Cliente |
 
-El proyecto contempla:
+## Probar el flujo completo (3 minutos)
+1. Abre http://localhost:5173, elige el día «Mañana» y una función.
+2. Ingresa como `cliente1` (botones de demostración en la pantalla de ingreso).
+3. Elige hasta 6 asientos en el mapa y pulsa **Reservar**. Tienes 5 minutos (cuenta regresiva) para **Confirmar**.
+4. Se emiten los boletos con QR. Mira «Mis reservas» (reporte individual).
+5. Abre **Llamadas API** (abajo a la derecha) para evidenciar el consumo de cada microservicio, o la pestaña **Conexiones**.
+6. Con `operador` valida un boleto (Panel → Validar boletos), revisa Reservas y el Reporte general por rango de fechas.
+7. Con `admin` gestiona usuarios (activar/desactivar) y revisa la Auditoría.
 
-- Registro e inicio de sesión de usuarios.
-- Autenticación mediante JWT y autorización basada en roles.
-- Gestión de películas, funciones y salas.
-- Administración de secciones, filas y asientos.
-- Selección y control de disponibilidad de asientos.
-- Reservas de hasta seis boletos por compra.
-- Expiración de reservas pendientes después de cinco minutos y liberación de asientos.
-- Generación de boletos electrónicos con códigos QR.
-- Consulta del historial de reservas por cliente.
-- Generación de reportes administrativos por rango de fechas.
-- Comunicación entre microservicios mediante APIs REST.
+## Pruebas automáticas
+```bash
+RESERVA_TTL_SECONDS=20 ./scripts/start-local.sh   # TTL corto para probar la expiración
+node scripts/smoke.mjs                            # 66 comprobaciones de punta a punta (requiere Node 18+)
+```
+Prueba de interfaz (navegador simulado, recorre cliente, operador y administrador; 33 comprobaciones):
+```bash
+cd scripts && npm install && node ui-test.mjs
+```
+La prueba de humo cubre: login y roles, reglas de negocio (máx. 6, asiento duplicado, concurrencia de dos clientes por el mismo asiento), confirmación, QR firmado y de un solo uso, expiración, cancelación, reportes (con cruce de cifras) y las integraciones entre servicios (JWKS, auditoría, cancelación de función).
 
-Los procesos de pago, facturación y pasarelas de pago están fuera del alcance del proyecto.
+## Lo que ya está y lo que falta
+| Requisito | Estado |
+|---|---|
+| Microservicios Usuarios, Películas y Reservas con REST y Swagger | Hecho |
+| Auth OAuth 2.0 + JWT RS256 + roles (Administrador, Operador, Cliente) | Hecho |
+| Registro con usuario y contraseña generados y envío por correo | Hecho (el correo real requiere configurar SMTP; sin SMTP se simula y, en modo demo, se muestra en pantalla) |
+| Mapa de asientos, reserva (máx. 6), expiración a 5 min, boleto con QR por asiento | Hecho |
+| Reporte individual y reporte general con rango de fechas | Hecho |
+| Auditoría de acciones del personal | Hecho |
+| Semillas por servicio y scripts SQL de respaldo | Hecho |
+| Frontend en React | **Pendiente**: el actual es HTML+JS sin compilación, pensado para probar conexiones; consume los mismos contratos |
+| Diagrama ER final | **Pendiente de actualizar** con los ajustes de abajo |
+| DevSecOps (GitHub Actions: lint y auditoría de dependencias) | Pendiente |
+| Pruebas unitarias por servicio | Pendiente (hay pruebas de integración) |
+| Recuperación de contraseña, paginación, HTTPS | Pendiente |
 
-## 4. Arquitectura del sistema
+## Ajustes respecto al ER original (actualiza el diagrama)
+- `asiento.estado` (`ACTIVO`/`BLOQUEADO`): bloqueo físico por mantenimiento.
+- `reserva.gestionado_por`: usuario del personal que creó la reserva a nombre de un cliente.
+- `boleto.etiqueta` y `boleto.seccion_tipo`: copia de datos del asiento para mostrar el boleto sin depender de Películas.
+- `boleto.asiento_funcion_id`: la unicidad es **parcial** (solo boletos no anulados), si no un asiento cancelado no podría volver a venderse.
+- Administrador y operador también tienen registro en `cliente` (datos personales obligatorios para todos los usuarios).
+- Estados de asiento por función: `DISPONIBLE`, `RESERVADO`, `OCUPADO` (los del enunciado) en lugar de `BLOQUEADO`/`VENDIDO`.
 
-El sistema se organiza en tres microservicios principales:
+## Limitaciones conocidas
+- Las contraseñas se guardan con **bcrypt** (hash). El enunciado menciona AES256 como ejemplo: confirma con el docente cuál exige.
+- Al desactivar una cuenta, Usuarios la bloquea de inmediato; Películas y Reservas la reconocen hasta que expire el token (1 h).
+- Las funciones de la semilla se generan para 4 días desde el primer arranque. Para crear más: `POST /api/v1/funciones/generar-demo` (administrador) en el Swagger de Películas.
+- Los valores por defecto (`estado`, fechas de creación) los pone el código de cada servicio, no la base: si insertas filas a mano en SQL, indica esas columnas.
+- Cambia `QR_SECRET`, `*_CLIENT_SECRET` y `DEMO_MODE` antes de cualquier uso fuera de demostración.
 
-### Microservicio de Usuarios y Autenticación
-Responsable del registro de usuarios, inicio de sesión, gestión de roles, validación de credenciales y control de acceso.
-
-### Microservicio de Películas
-Responsable de la administración de películas, funciones, salas, secciones, filas y asientos.
-
-### Microservicio de Reservas
-Responsable de gestionar las reservas, controlar la disponibilidad de asientos, aplicar las reglas de negocio, generar boletos electrónicos con códigos QR y proporcionar reportes.
-
-El frontend consume las APIs REST para ofrecer las funcionalidades correspondientes a cada rol.
-
-## 5. Tecnologías utilizadas
-
-Las tecnologías definitivas deben corresponder a las implementadas en el código del proyecto.
-
-- **Backend:** [Indicar tecnologías y frameworks utilizados en cada microservicio].
-- **Frontend:** [Indicar framework o biblioteca utilizada].
-- **Bases de datos:** PostgreSQL.
-- **ORM:** [Indicar el ORM utilizado en cada servicio].
-- **Autenticación:** JWT y OAuth 2.0, según la implementación.
-- **Documentación de APIs:** OpenAPI / Swagger.
-- **Control de versiones:** Git y GitHub.
-
-## 6. Modelo de datos
-
-El modelo entidad-relación representa las entidades principales del negocio y sus relaciones, incluyendo usuarios, roles, clientes, películas, funciones, salas, secciones, filas, asientos, reservas y boletos.
-
-Cada microservicio administra los datos correspondientes a su dominio funcional, manteniendo la integridad y consistencia de la información.
-
-## 7. Seguridad
-
-El sistema contempla:
-
-- Autenticación de usuarios.
-- Autorización basada en roles.
-- Uso de tokens de acceso JWT.
-- Validación y sanitización de entradas.
-- Almacenamiento seguro de contraseñas mediante mecanismos de hash apropiados.
-- Protección de variables de entorno y credenciales.
-- Principios de confidencialidad, integridad y disponibilidad.
-- Autenticación, autorización y auditoría.
-
-La aplicación de OAuth 2.0 y las prácticas DevSecOps se documentará de acuerdo con su implementación efectiva.
-
-## 8. Instalación y ejecución
-
-1. Clonar el repositorio.
-2. Instalar las dependencias de cada microservicio y del frontend.
-3. Configurar las variables de entorno a partir de los archivos `.env.example`.
-4. Crear y configurar las bases de datos requeridas.
-5. Ejecutar las migraciones o scripts de creación de tablas.
-6. Cargar los datos iniciales mediante los archivos semilla.
-7. Iniciar los microservicios.
-8. Iniciar el frontend y verificar la comunicación con las APIs.
-
-Los comandos específicos de instalación y ejecución se documentarán según las tecnologías de cada componente.
-
-## 9. Documentación de las APIs
-
-Cada microservicio debe disponer de documentación OpenAPI o Swagger con sus endpoints, parámetros, modelos de datos, mecanismos de autenticación y respuestas.
-
-## 10. Reglas de negocio
-
-- Máximo de seis boletos por reserva.
-- Una reserva corresponde a una única función.
-- Cada asiento debe tener un estado de disponibilidad controlado.
-- Las reservas pendientes expiran después de cinco minutos, según las reglas definidas.
-- Cada boleto debe disponer de un código QR único.
-- Los usuarios solo pueden acceder a las funcionalidades autorizadas para su rol.
-
-## 11. Entregables académicos
-
-- Modelo entidad-relación.
-- Scripts SQL de creación y población de tablas.
-- Microservicios backend.
-- Aplicación web frontend.
-- Documentación de APIs.
-- Diagramas de arquitectura.
-- Instrucciones de configuración y despliegue.
-
-## 12. Contexto académico
-
-**Institución:** Universidad Central del Ecuador  
-**Facultad:** Ingeniería y Ciencias Aplicadas  
-**Carrera:** Ingeniería en Sistemas de Información  
-**Componente:** Ingeniería de Software  
-**Subcomponente:** Análisis, Diseño y Desarrollo de Sistemas de Información  
-**Tema específico:** Sistemas de Gestión  
-**Caso:** 3 — Sistema de Gestión de Reservas de Películas
+## Estructura
+```
+backend/usuarios   Node: model/entities, routes, security (JWKS), seed
+backend/peliculas  Python: model/entities, routes, security, seed
+backend/reservas   Node: model/entities, servicio.js (reglas), reportes.js, seed
+frontend           index.html, app.js, styles.css, config.js
+sql                respaldo: crea y puebla cada base (generados desde las semillas)
+scripts            start-local.sh, smoke.mjs
+docs               contrato.md (contrato común entre servicios)
+```
