@@ -151,3 +151,14 @@ tr:last-child td{border-bottom:0}
 .toast small{display:block;opacity:.9}
 .empty{text-align:center;padding:2.5rem 1rem;color:var(--muted)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+
+/* ocultar con [hidden] aunque el elemento tenga display propio */
+[hidden]{display:none!important}
+/* selector de modo y cámara */
+.seg{display:inline-flex;background:#e7eceb;border-radius:10px;padding:3px;margin:.25rem 0 1rem;gap:2px}
+.seg button{background:transparent;color:var(--ink);padding:.45rem 1rem}
+.seg button:hover{background:#dbe3e2}
+.seg button[aria-selected="true"]{background:#fff;box-shadow:0 1px 3px rgba(23,37,46,.2)}
+.cam{position:relative;max-width:420px;aspect-ratio:4/3;background:#0e1a21;border-radius:12px;overflow:hidden}
+.cam video{width:100%;height:100%;object-fit:cover;display:block}
+.cam-frame{position:absolute;inset:18%;border:3px solid var(--marquee);border-radius:14px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}

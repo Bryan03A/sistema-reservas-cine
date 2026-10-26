@@ -1,11 +1,10 @@
 import { Router } from 'express';
-import { Op } from 'sequelize';
 import { AppError, asyncH } from '../errors.js';
 import { autenticar, autorizar } from '../security.js';
 import { Usuario, Rol, Cliente } from '../model/entities/index.js';
 import { sequelize } from '../db.js';
 import { config } from '../config.js';
-import { crearCuenta, notificarCredenciales, auditar, vistaUsuario } from '../cuentas.js';
+import { crearCuenta, notificarCredenciales, auditar, vistaUsuario, normalizar } from '../cuentas.js';
 import { crearUsuarioSchema, actualizarUsuarioSchema, estadoSchema, perfilSchema } from '../schemas.js';
 
 const router = Router();
@@ -29,16 +28,14 @@ router.get('/usuarios', autenticar, staff, asyncH(async (req, res) => {
   const where = {};
   if (req.query.estado) where.estado = req.query.estado;
   const rolWhere = req.auth.rol === 'OPERADOR' ? { nombre: 'CLIENTE' } : req.query.rol ? { nombre: req.query.rol } : undefined;
-  const q = req.query.q?.toString().trim();
-  const clienteWhere = q ? { [Op.or]: [
-    { primer_nombre: { [Op.iLike]: `%${q}%` } }, { apellido: { [Op.iLike]: `%${q}%` } },
-    { dni: { [Op.iLike]: `%${q}%` } }, { correo: { [Op.iLike]: `%${q}%` } },
-  ] } : undefined;
-  const rows = await Usuario.findAll({
-    where, order: [['id', 'ASC']],
-    include: [{ model: Rol, where: rolWhere }, { model: Cliente, where: clienteWhere }],
-  });
-  res.json(rows.map(vistaUsuario));
+  const q = normalizar(req.query.q);
+  const rows = await Usuario.findAll({ where, order: [['id', 'ASC']], include: [{ model: Rol, where: rolWhere }, Cliente] });
+  let lista = rows.map(vistaUsuario);
+  // Búsqueda sin tildes ni mayúsculas sobre usuario, nombres, DNI y correo
+  if (q) {
+    lista = lista.filter((u) => normalizar([u.username, u.cliente?.primer_nombre, u.cliente?.segundo_nombre, u.cliente?.apellido, u.cliente?.dni, u.cliente?.correo].join(' ')).includes(q));
+  }
+  res.json(lista);
 }));
 
 router.get('/usuarios/:id', autenticar, staff, asyncH(async (req, res) => {

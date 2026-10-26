@@ -1,6 +1,4 @@
-# Cine Andino: 3 microservicios + 3 bases PostgreSQL + frontend.
-# Uso: cp .env.example .env && docker compose up --build
-
+# Cine Andino: 3 microservicios + 3 bases PostgreSQL + frontend.   Uso:  cp .env.example .env  &&  docker compose up --build
 name: cine-reservas
 
 x-db: &db
@@ -18,43 +16,24 @@ x-db: &db
 services:
   db-usuarios:
     <<: *db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "${DB_PASSWORD:-postgres}"
-      POSTGRES_DB: db_usuarios
-    volumes:
-      - db_usuarios:/var/lib/postgresql/data
-    ports:
-      - "6433:5432"
-
+    environment: { POSTGRES_USER: postgres, POSTGRES_PASSWORD: "${DB_PASSWORD:-postgres}", POSTGRES_DB: db_usuarios }
+    volumes: [db_usuarios:/var/lib/postgresql/data]
+    ports: ["5433:5432"]
   db-peliculas:
     <<: *db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "${DB_PASSWORD:-postgres}"
-      POSTGRES_DB: db_peliculas
-    volumes:
-      - db_peliculas:/var/lib/postgresql/data
-    ports:
-      - "6434:5432"
-
+    environment: { POSTGRES_USER: postgres, POSTGRES_PASSWORD: "${DB_PASSWORD:-postgres}", POSTGRES_DB: db_peliculas }
+    volumes: [db_peliculas:/var/lib/postgresql/data]
+    ports: ["5434:5432"]
   db-reservas:
     <<: *db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "${DB_PASSWORD:-postgres}"
-      POSTGRES_DB: db_reservas
-    volumes:
-      - db_reservas:/var/lib/postgresql/data
-    ports:
-      - "6435:5432"
+    environment: { POSTGRES_USER: postgres, POSTGRES_PASSWORD: "${DB_PASSWORD:-postgres}", POSTGRES_DB: db_reservas }
+    volumes: [db_reservas:/var/lib/postgresql/data]
+    ports: ["5435:5432"]
 
   usuarios:
     build: ./backend/usuarios
     restart: unless-stopped
-    depends_on:
-      db-usuarios:
-        condition: service_healthy
+    depends_on: { db-usuarios: { condition: service_healthy } }
     environment:
       PORT: 3001
       DATABASE_URL: postgres://postgres:${DB_PASSWORD:-postgres}@db-usuarios:5432/db_usuarios
@@ -68,19 +47,13 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-Cine Andino <no-reply@cine.local>}
-    volumes:
-      - usuarios_keys:/data/keys
-    ports:
-      - "3001:3001"
+    volumes: [usuarios_keys:/data/keys]
+    ports: ["3001:3001"]
 
   peliculas:
     build: ./backend/peliculas
     restart: unless-stopped
-    depends_on:
-      db-peliculas:
-        condition: service_healthy
-      usuarios:
-        condition: service_started
+    depends_on: { db-peliculas: { condition: service_healthy }, usuarios: { condition: service_started } }
     environment:
       PORT: 3002
       DATABASE_URL: postgresql+psycopg2://postgres:${DB_PASSWORD:-postgres}@db-peliculas:5432/db_peliculas
@@ -91,19 +64,12 @@ services:
       SERVICE_CLIENT_SECRET: ${PELICULAS_CLIENT_SECRET:-peliculas-secret}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
       TIMEZONE: America/Guayaquil
-    ports:
-      - "3002:3002"
+    ports: ["3002:3002"]
 
   reservas:
     build: ./backend/reservas
     restart: unless-stopped
-    depends_on:
-      db-reservas:
-        condition: service_healthy
-      usuarios:
-        condition: service_started
-      peliculas:
-        condition: service_started
+    depends_on: { db-reservas: { condition: service_healthy }, usuarios: { condition: service_started }, peliculas: { condition: service_started } }
     environment:
       PORT: 3003
       DATABASE_URL: postgres://postgres:${DB_PASSWORD:-postgres}@db-reservas:5432/db_reservas
@@ -115,19 +81,12 @@ services:
       QR_SECRET: ${QR_SECRET:-cambia-este-secreto-del-qr}
       RESERVA_TTL_SECONDS: ${RESERVA_TTL_SECONDS:-300}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
-    ports:
-      - "3003:3003"
+    ports: ["3003:3003"]
 
   frontend:
     image: nginx:alpine
     restart: unless-stopped
-    volumes:
-      - "./frontend:/usr/share/nginx/html:ro"
-    ports:
-      - "5173:80"
+    volumes: ["./frontend:/usr/share/nginx/html:ro"]
+    ports: ["5173:80"]
 
-volumes:
-  db_usuarios: {}
-  db_peliculas: {}
-  db_reservas: {}
-  usuarios_keys: {}
+volumes: { db_usuarios: {}, db_peliculas: {}, db_reservas: {}, usuarios_keys: {} }

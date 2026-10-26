@@ -52,16 +52,24 @@ Si la semilla falla, usa los scripts de respaldo de `sql/` (crean y pueblan cada
 2. Ingresa como `cliente1` (botones de demostración en la pantalla de ingreso).
 3. Elige hasta 6 asientos en el mapa y pulsa **Reservar**. Tienes 5 minutos (cuenta regresiva) para **Confirmar**.
 4. Se emiten los boletos con QR. Mira «Mis reservas» (reporte individual).
-5. Abre **Llamadas API** (abajo a la derecha) para evidenciar el consumo de cada microservicio, o la pestaña **Conexiones**.
-6. Con `operador` valida un boleto (Panel → Validar boletos), revisa Reservas y el Reporte general por rango de fechas.
-7. Con `admin` gestiona usuarios (activar/desactivar) y revisa la Auditoría.
+5. Con `operador` valida un boleto (Panel → Validar boletos), escribiendo el código o **escaneando el QR con la cámara**. Revisa también Reservas y el Reporte general por rango de fechas.
+6. Con `admin` gestiona usuarios (activar/desactivar) y revisa la Auditoría. Solo el administrador ve el botón **Llamadas API** (abajo a la derecha, evidencia el consumo de cada microservicio) y la pestaña **Conexiones**.
+
+## Validar boletos con la cámara
+En Panel → Validar boletos hay dos modos: **Ingresar código** y **Escanear con cámara**. Al leer un QR se valida de inmediato y se muestra el resultado.
+- La cámara solo funciona en `localhost` o con `https` (regla de los navegadores). Si abres la app desde otro equipo con `http://IP`, usa el modo manual o publica con https.
+- Chrome y Edge en Android o macOS usan el lector nativo del navegador; el resto (Firefox, Safari, Chrome en Windows o Linux) usa la librería jsQR, que va incluida en `frontend/vendor/` (Apache-2.0), así que **no necesita internet**. Si cambias el servidor del frontend, asegúrate de publicar también esa carpeta.
+- Se apaga la cámara al cambiar de pantalla o al detener el escaneo.
+
+## Búsquedas sin tildes
+Todas las búsquedas ignoran tildes y mayúsculas: «codigo cuantico» encuentra «Código Cuántico». Aplica a la cartelera (nombre y género, filtrado en Películas), a la búsqueda `q` de usuarios (en Usuarios) y a los buscadores de las tablas del panel (usuarios, reservas, películas y auditoría).
 
 ## Pruebas automáticas
 ```bash
 RESERVA_TTL_SECONDS=20 ./scripts/start-local.sh   # TTL corto para probar la expiración
-node scripts/smoke.mjs                            # 66 comprobaciones de punta a punta (requiere Node 18+)
+node scripts/smoke.mjs                            # 73 comprobaciones de punta a punta (requiere Node 18+)
 ```
-Prueba de interfaz (navegador simulado, recorre cliente, operador y administrador; 33 comprobaciones):
+Prueba de interfaz (navegador simulado, recorre cliente, operador y administrador; 48 comprobaciones):
 ```bash
 cd scripts && npm install && node ui-test.mjs
 ```
@@ -74,6 +82,7 @@ La prueba de humo cubre: login y roles, reglas de negocio (máx. 6, asiento dupl
 | Auth OAuth 2.0 + JWT RS256 + roles (Administrador, Operador, Cliente) | Hecho |
 | Registro con usuario y contraseña generados y envío por correo | Hecho (el correo real requiere configurar SMTP; sin SMTP se simula y, en modo demo, se muestra en pantalla) |
 | Mapa de asientos, reserva (máx. 6), expiración a 5 min, boleto con QR por asiento | Hecho |
+| Validación de boletos por código o con la cámara; búsquedas sin tildes | Hecho (la cámara real no pudo probarse en el entorno de desarrollo; sí se verificó que el lector decodifica los QR del sistema) |
 | Reporte individual y reporte general con rango de fechas | Hecho |
 | Auditoría de acciones del personal | Hecho |
 | Semillas por servicio y scripts SQL de respaldo | Hecho |
@@ -103,7 +112,7 @@ La prueba de humo cubre: login y roles, reglas de negocio (máx. 6, asiento dupl
 backend/usuarios   Node: model/entities, routes, security (JWKS), seed
 backend/peliculas  Python: model/entities, routes, security, seed
 backend/reservas   Node: model/entities, servicio.js (reglas), reportes.js, seed
-frontend           index.html, app.js, styles.css, config.js
+frontend           index.html, app.js, styles.css, config.js, vendor/ (jsQR para el escáner)
 sql                respaldo: crea y puebla cada base (generados desde las semillas)
 scripts            start-local.sh, smoke.mjs
 docs               contrato.md (contrato común entre servicios)

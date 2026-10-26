@@ -6,6 +6,8 @@ import { AppError } from './errors.js';
 import { Rol, Usuario, Cliente, RegistroAuditoria } from './model/entities/index.js';
 
 const quitarAcentos = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+// Para buscar: sin tildes y sin distinguir mayúsculas
+export const normalizar = (s) => quitarAcentos(String(s ?? '')).toLowerCase().trim();
 
 export async function generarUsername(primerNombre, apellido) {
   const base = quitarAcentos(`${primerNombre[0]}${apellido}`).toLowerCase().replace(/[^a-z0-9]/g, '') || 'usuario';

@@ -1,3 +1,4 @@
+import unicodedata
 from datetime import date
 from fastapi import APIRouter, Depends
 from sqlalchemy import exists
@@ -12,6 +13,12 @@ from .. import clients
 router = APIRouter(prefix="/api/v1", tags=["Películas"])
 
 
+def norm(texto: str) -> str:
+    """Normaliza para buscar: sin tildes y sin distinguir mayúsculas ("Código Cuántico" → "codigo cuantico")."""
+    sin_marcas = "".join(c for c in unicodedata.normalize("NFD", texto) if unicodedata.category(c) != "Mn")
+    return sin_marcas.casefold().strip()
+
+
 def out(p: Pelicula) -> dict:
     return {"id": p.id, "nombre": p.nombre, "descripcion": p.descripcion, "genero": p.genero, "duracion_min": p.duracion_min,
             "clasificacion": p.clasificacion, "estado": p.estado}
@@ -24,7 +31,7 @@ def get_or_404(db: Session, pid: int) -> Pelicula:
     return p
 
 
-@router.get("/peliculas", summary="Consultar cartelera (público): por nombre, género, clasificación y fecha")
+@router.get("/peliculas", summary="Consultar cartelera (público): por nombre, género, clasificación y fecha. La búsqueda ignora tildes y mayúsculas")
 def listar(nombre: str | None = None, genero: str | None = None, clasificacion: str | None = None,
            fecha: date | None = None, estado: str | None = None,
            db: Session = Depends(get_db), auth: Auth | None = Depends(auth_optional)):
@@ -35,15 +42,17 @@ def listar(nombre: str | None = None, genero: str | None = None, clasificacion: 
         q = q.filter(Pelicula.estado == "ACTIVA")
     elif estado != "TODAS":
         q = q.filter(Pelicula.estado == estado)
-    if nombre:
-        q = q.filter(Pelicula.nombre.ilike(f"%{nombre}%"))
-    if genero:
-        q = q.filter(Pelicula.genero.ilike(f"%{genero}%"))
     if clasificacion:
         q = q.filter(Pelicula.clasificacion == clasificacion)
     if fecha:
         q = q.filter(exists().where(Funcion.pelicula_id == Pelicula.id, Funcion.fecha == fecha, Funcion.estado == "ACTIVA"))
-    return [out(p) for p in q.order_by(Pelicula.nombre).all()]
+    peliculas = q.order_by(Pelicula.nombre).all()
+    # La cartelera es pequeña: se filtra aquí para ignorar tildes (no depende de extensiones de PostgreSQL)
+    if nombre and norm(nombre):
+        peliculas = [p for p in peliculas if norm(nombre) in norm(p.nombre)]
+    if genero and norm(genero):
+        peliculas = [p for p in peliculas if norm(genero) in norm(p.genero)]
+    return [out(p) for p in peliculas]
 
 
 @router.get("/peliculas/{pid}", summary="Detalle de una película")

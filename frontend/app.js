@@ -7,6 +7,8 @@
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = (n) => `$${Number(n).toFixed(2)}`;
+  // Para buscar: sin tildes ni mayúsculas ("Código Cuántico" coincide con "codigo cuantico")
+  const norm = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   const main = $('#main');
   const EC = -5 * 3600000; // hora de Ecuador (UTC-5)
   const hoyEC = () => new Date(Date.now() + EC).toISOString().slice(0, 10);
@@ -18,6 +20,7 @@
   let ses = JSON.parse(localStorage.getItem('cine_sesion') || 'null');
   const setSes = (s) => { ses = s; s ? localStorage.setItem('cine_sesion', JSON.stringify(s)) : localStorage.removeItem('cine_sesion'); };
   const esStaff = () => !!ses && (ses.rol === 'ADMINISTRADOR' || ses.rol === 'OPERADOR');
+  const esAdmin = () => !!ses && ses.rol === 'ADMINISTRADOR';
 
   // ---------- Registro de llamadas (evidencia del consumo de microservicios)
   const calls = [];
@@ -89,17 +92,30 @@
     return `<span class="badge ${cls}">${esc(e)}</span>`;
   };
   const timers = [];
+  const cleanups = []; // se ejecutan al cambiar de pantalla (p. ej., apagar la cámara)
   const every = (fn, ms) => timers.push(setInterval(fn, ms));
+  const buscadorHtml = (ph) => `<div style="margin-bottom:.75rem"><input class="buscar" type="search" placeholder="${esc(ph)}" aria-label="${esc(ph)}" style="max-width:440px"></div>`;
+  // Filtra las filas de la primera tabla mientras se escribe, ignorando tildes y mayúsculas
+  function enlazarBuscador(box) {
+    const inp = $('.buscar', box); const tb = $('table tbody', box);
+    if (!inp || !tb) return;
+    const texto = (r) => { const c = r.cloneNode(true); c.querySelectorAll('button,.btn').forEach((e) => e.remove()); return norm(c.textContent); };
+    const filas = [...tb.rows].map((r) => ({ r, t: texto(r) }));
+    inp.addEventListener('input', () => { const q = norm(inp.value); filas.forEach(({ r, t }) => { r.hidden = !!q && !t.includes(q); }); });
+  }
   const palettes = [['#0f7c86', '#17252e'], ['#6a52c9', '#2b2160'], ['#c4691b', '#5a2a08'], ['#2f7d4f', '#10341f']];
   const titulo = (t) => { document.title = `${t} · Cine Andino`; };
 
   function renderTopbar() {
     const hash = location.hash || '#/';
+    const adm = esAdmin();
+    $('#logbtn').hidden = !adm;
+    if (!adm) { $('#logpanel').hidden = true; $('#logbtn').setAttribute('aria-expanded', 'false'); }
     const cur = (h) => (hash === h || (h !== '#/' && hash.startsWith(h)) ? ' aria-current="page"' : '');
     const links = [`<a href="#/"${cur('#/')}>Cartelera</a>`];
     if (ses && ses.rol === 'CLIENTE') links.push(`<a href="#/mis-reservas"${cur('#/mis-reservas')}>Mis reservas</a>`);
     if (esStaff()) links.push(`<a href="#/panel"${cur('#/panel')}>Panel de gestión</a>`);
-    links.push(`<a href="#/conexiones"${cur('#/conexiones')}>Conexiones</a>`);
+    if (adm) links.push(`<a href="#/conexiones"${cur('#/conexiones')}>Conexiones</a>`);
     $('#topbar').innerHTML = `<div class="bar"><a class="brand" href="#/"><i></i>Cine Andino</a><nav class="nav" aria-label="Principal">${links.join('')}</nav>
       ${ses ? `<span class="chip-user"><b>${esc(ses.username)}</b>, ${esc(ses.rol.toLowerCase())}</span><button class="alt sm" id="salir" style="color:#fff;box-shadow:inset 0 0 0 1.5px #496070">Cerrar sesión</button>`
             : `<a class="btn alt sm" href="#/login" style="color:#fff;box-shadow:inset 0 0 0 1.5px #496070">Ingresar</a><a class="btn accent sm" href="#/registro" style="color:var(--ink)">Crear cuenta</a>`}</div>`;
@@ -126,11 +142,14 @@
       $('#fechas').innerHTML = dias.map((d, i) => `<button type="button" data-f="${d}" aria-pressed="${d === fecha}">${i === 0 ? 'Hoy' : i === 1 ? 'Mañana' : fechaLarga(d).split(',')[0]} ${d.slice(8)}/${d.slice(5, 7)}</button>`).join('');
       $('#fd').value = fecha;
     };
+    let seq = 0; // evita que una respuesta vieja pise a una más reciente al escribir rápido
     async function cargar() {
+      const mi = ++seq;
       const q = new URLSearchParams({ fecha });
       if (filtros.nombre) q.set('nombre', filtros.nombre);
       if (filtros.genero) q.set('genero', filtros.genero);
       const [pelis, funs] = await Promise.all([api('peliculas', 'GET', `/peliculas?${q}`, null, { auth: false }), api('peliculas', 'GET', `/funciones?fecha=${fecha}`, null, { auth: false })]);
+      if (mi !== seq || !$('#films')) return;
       $('#films').innerHTML = pelis.length ? pelis.map((p) => {
         const [c1, c2] = palettes[p.id % palettes.length];
         const slots = funs.filter((f) => f.pelicula_id === p.id).map((f) => {
@@ -144,10 +163,13 @@
     }
     pintarFechas();
     $('#fechas').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; fecha = b.dataset.f; sessionStorage.setItem('cine_fecha', fecha); pintarFechas(); act(cargar); });
+    let espera;
     $('#filtros').addEventListener('input', (e) => {
       if (e.target.name === 'fecha') { if (e.target.value) { fecha = e.target.value; sessionStorage.setItem('cine_fecha', fecha); pintarFechas(); } } else filtros[e.target.name] = e.target.value;
-      act(cargar);
+      clearTimeout(espera);
+      espera = setTimeout(() => act(cargar), e.target.name === 'nombre' ? 200 : 0);
     });
+    cleanups.push(() => clearTimeout(espera));
     await cargar();
   }
 
@@ -340,7 +362,7 @@
   async function tabUsuarios(box, credHtml = '') {
     const us = await api('usuarios', 'GET', '/usuarios');
     const roles = ses.rol === 'ADMINISTRADOR' ? ['CLIENTE', 'OPERADOR', 'ADMINISTRADOR'] : ['CLIENTE'];
-    box.innerHTML = `<div class="tablewrap"><table><thead><tr><th>Usuario</th><th>Nombre</th><th>DNI</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Última conexión</th><th></th></tr></thead><tbody>
+    box.innerHTML = `${buscadorHtml('Buscar por usuario, nombre, DNI o correo')}<div class="tablewrap"><table><thead><tr><th>Usuario</th><th>Nombre</th><th>DNI</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Última conexión</th><th></th></tr></thead><tbody>
       ${us.map((u) => `<tr><td>${esc(u.username)}</td><td>${esc([u.cliente?.primer_nombre, u.cliente?.apellido].filter(Boolean).join(' '))}</td><td>${esc(u.cliente?.dni || '')}</td><td>${esc(u.cliente?.correo || '')}</td><td>${esc(u.rol)}</td><td>${badge(u.estado)}</td>
       <td class="small">${u.ultima_conexion ? new Date(u.ultima_conexion).toLocaleString('es-EC') : 'Nunca'}</td>
       <td>${u.id === ses.usuario_id ? '' : `<button class="sm ${u.estado === 'ACTIVO' ? 'alt' : ''}" data-id="${u.id}" data-e="${u.estado === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO'}">${u.estado === 'ACTIVO' ? 'Desactivar' : 'Activar'}</button>`}</td></tr>`).join('')}</tbody></table></div>
@@ -351,6 +373,7 @@
         <div><label for="n5">Correo</label><input id="n5" name="correo" type="email" required></div><div><label for="n6">Teléfono</label><input id="n6" name="telefono"></div>
         <div><label for="n7">Rol</label><select id="n7" name="rol">${roles.map((r) => `<option>${r}</option>`).join('')}</select></div>
         <div style="align-self:end"><button type="submit">Crear usuario</button></div></form>`;
+    enlazarBuscador(box);
     if (!box.dataset.bound) {
       box.dataset.bound = '1';
       box.addEventListener('click', (e) => {
@@ -372,7 +395,7 @@
   async function tabCartelera(box) {
     const fecha = sessionStorage.getItem('pf_fecha') || hoyEC();
     const [pelis, salas, funs] = await Promise.all([api('peliculas', 'GET', '/peliculas?estado=TODAS'), api('peliculas', 'GET', '/salas'), api('peliculas', 'GET', `/funciones?fecha=${fecha}&estado=TODAS`)]);
-    box.innerHTML = `<h2>Películas</h2><div class="tablewrap"><table><thead><tr><th>Nombre</th><th>Género</th><th>Duración</th><th>Clasificación</th><th>Estado</th><th></th></tr></thead><tbody>
+    box.innerHTML = `<h2>Películas</h2>${buscadorHtml('Buscar película por nombre, género o clasificación')}<div class="tablewrap"><table><thead><tr><th>Nombre</th><th>Género</th><th>Duración</th><th>Clasificación</th><th>Estado</th><th></th></tr></thead><tbody>
       ${pelis.map((p) => `<tr><td>${esc(p.nombre)}</td><td>${esc(p.genero)}</td><td>${p.duracion_min} min</td><td>${esc(p.clasificacion)}</td><td>${badge(p.estado)}</td>
       <td>${['ACTIVA', 'INACTIVA', 'RETIRADA'].filter((s) => s !== p.estado).map((s) => `<button class="sm alt" data-pel="${p.id}" data-e="${s}">${{ ACTIVA: 'Activar', INACTIVA: 'Desactivar', RETIRADA: 'Retirar' }[s]}</button>`).join(' ')}</td></tr>`).join('')}</tbody></table></div>
       <form id="np" class="grid card" style="margin-top:1rem"><div><label for="p1">Nombre</label><input id="p1" name="nombre" required></div><div><label for="p2">Género</label><input id="p2" name="genero" required></div>
@@ -387,6 +410,7 @@
         <div><label for="f3">Fecha</label><input id="f3" name="fecha" type="date" value="${fecha}" required></div><div><label for="f4">Hora de inicio</label><input id="f4" name="hora_inicio" type="time" required></div>
         <div style="align-self:end"><button type="submit">Programar función</button></div></form>
       <h2 style="margin-top:2rem">Salas, secciones y asientos</h2><div class="grid">${salas.map((s) => `<div class="card"><h3>${esc(s.nombre)}</h3>${s.secciones.map((x) => `<p class="small" style="margin:.2rem 0"><b>${esc(x.nombre)}</b>, ${money(x.precio)}: ${x.num_filas} filas de ${x.asientos_por_fila} asientos (${x.capacidad})</p>`).join('')}</div>`).join('')}</div>`;
+    enlazarBuscador(box);
     $('#pf').addEventListener('change', (e) => { sessionStorage.setItem('pf_fecha', e.target.value); route(); });
     box.addEventListener('click', (e) => {
       const p = e.target.closest('[data-pel]'); const f = e.target.closest('[data-fun]');
@@ -405,11 +429,12 @@
     box.innerHTML = `<form id="f" class="grid card" style="margin-bottom:1rem"><div><label for="e">Estado</label><select id="e" name="estado"><option value="">Todos</option>${['PENDIENTE', 'CONFIRMADA', 'CANCELADA', 'EXPIRADA', 'USADA'].map((s) => `<option ${s === q.estado ? 'selected' : ''}>${s}</option>`).join('')}</select></div>
       <div><label for="p">Película</label><select id="p" name="pelicula_id"><option value="">Todas</option>${pelis.map((p) => `<option value="${p.id}" ${String(p.id) === q.pelicula_id ? 'selected' : ''}>${esc(p.nombre)}</option>`).join('')}</select></div>
       <div><label for="fu">Función (número)</label><input id="fu" name="funcion_id" type="number" min="1" value="${esc(q.funcion_id)}"></div><div style="align-self:end"><button type="submit">Filtrar</button></div></form>
-      <div class="tablewrap"><table><thead><tr><th>Código</th><th>Cliente</th><th>Película y función</th><th>Asientos</th><th>Total</th><th>Estado</th><th></th></tr></thead><tbody>
+      ${buscadorHtml('Buscar por código, cliente, película o asiento')}<div class="tablewrap"><table><thead><tr><th>Código</th><th>Cliente</th><th>Película y función</th><th>Asientos</th><th>Total</th><th>Estado</th><th></th></tr></thead><tbody>
       ${rs.map((r) => `<tr><td>${esc(r.codigo)}</td><td>${esc(nombre.get(r.cliente_id) || `Cliente ${r.cliente_id}`)}${r.gestionado_por ? '<br><span class="small muted">Gestionada por el personal</span>' : ''}</td>
       <td>${esc(r.funcion.pelicula || `Función ${r.funcion_id}`)}<br><span class="small muted">#${r.funcion_id}, ${esc(r.funcion.fecha || '')} ${esc(r.funcion.hora_inicio || '')}, ${esc(r.funcion.sala || '')}</span></td>
       <td>${esc((r.asientos || []).join(', ') || `${r.cantidad_boletos} sin boleto`)}</td><td>${money(r.total)}</td><td>${badge(r.estado)}</td>
       <td><a class="btn sm alt" href="#/reserva/${r.id}">Ver</a> ${['PENDIENTE', 'CONFIRMADA'].includes(r.estado) ? `<button class="sm danger" data-c="${r.id}">Cancelar</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">No hay reservas con esos filtros</td></tr>'}</tbody></table></div>`;
+    enlazarBuscador(box);
     $('#f').addEventListener('submit', (e) => { e.preventDefault(); const d = Object.fromEntries(new FormData(e.target)); sessionStorage.setItem('pr_e', d.estado); sessionStorage.setItem('pr_p', d.pelicula_id); sessionStorage.setItem('pr_f', d.funcion_id); route(); });
     box.addEventListener('click', (e) => { const b = e.target.closest('[data-c]'); if (b && confirm('¿Cancelar esta reserva?')) act(async () => { await api('reservas', 'POST', `/reservas/${b.dataset.c}/cancelar`); toast('Reserva cancelada', 'good'); route(); }); });
   }
@@ -443,29 +468,131 @@
     await generar({ desde, hasta });
   }
 
-  function tabValidar(box) {
-    box.innerHTML = `<div class="card wide" style="margin:0"><h2>Validar boleto</h2><p class="muted">Pega el código del QR del boleto (o escanéalo con un lector). Cada boleto entra una sola vez.</p>
-      <form id="f" class="stack"><div><label for="c">Código del boleto</label><textarea id="c" name="codigo" rows="2" required></textarea></div><button type="submit">Validar entrada</button></form><div id="res" style="margin-top:1rem"></div></div>`;
-    $('#f').addEventListener('submit', (e) => {
-      e.preventDefault();
-      act(async () => {
-        try {
-          const r = await api('reservas', 'POST', '/boletos/validar', { codigo: new FormData(e.target).get('codigo').trim() });
-          $('#res').innerHTML = `<div class="hint"><b>Entrada válida.</b> Asiento ${esc(r.boleto.etiqueta)}, sección ${esc(r.boleto.seccion_tipo)}. Reserva ${esc(r.reserva.codigo)} (${esc(r.reserva.estado)}).</div>`;
-          toast('Boleto validado', 'good');
-        } catch (er) { $('#res').innerHTML = `<div class="err"><b>No se permite la entrada.</b> ${esc(er.message)}</div>`; throw er; }
-      });
+  // ----- Lector de QR: usa BarcodeDetector (nativo en Chrome/Edge para Android y macOS) y jsQR como alternativa.
+  // jsQR va incluido en vendor/ (sin depender de internet ni de un CDN).
+  let jsqrPromise = null;
+  function cargarJsQR() {
+    if (window.jsQR) return Promise.resolve(window.jsQR);
+    jsqrPromise ??= new Promise((resolve) => {
+      const sc = document.createElement('script');
+      sc.src = 'vendor/jsQR.js';
+      sc.onload = () => resolve(window.jsQR || null);
+      sc.onerror = () => { console.warn('No se pudo cargar vendor/jsQR.js'); jsqrPromise = null; resolve(null); };
+      document.head.append(sc);
     });
+    return jsqrPromise;
+  }
+  async function crearLector() {
+    const jsQR = await cargarJsQR();
+    let nativo = null;
+    if ('BarcodeDetector' in window) {
+      try {
+        if ((await window.BarcodeDetector.getSupportedFormats()).includes('qr_code')) nativo = new window.BarcodeDetector({ formats: ['qr_code'] });
+      } catch { nativo = null; }
+    }
+    if (!nativo && !jsQR) return null;
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    return async (video) => {
+      if (nativo) {
+        try { return (await nativo.detect(video))[0]?.rawValue || null; } catch { nativo = null; } // si falla, sigue con jsQR
+      }
+      if (!jsQR || !video.videoWidth) return null;
+      const k = Math.min(1, 640 / video.videoWidth);
+      canvas.width = Math.round(video.videoWidth * k); canvas.height = Math.round(video.videoHeight * k);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      return jsQR(img.data, img.width, img.height)?.data || null;
+    };
+  }
+
+  function tabValidar(box) {
+    let stream = null; let scanTimer = null; let ocupado = false;
+    box.innerHTML = `<div class="card wide" style="margin:0"><h2>Validar boleto</h2>
+      <p class="muted">Cada boleto entra una sola vez. Ingresa el código o escanea el QR del boleto con la cámara.</p>
+      <div class="seg" role="tablist" aria-label="Forma de validar">
+        <button type="button" role="tab" id="m-man" aria-selected="true" aria-controls="p-man">Ingresar código</button>
+        <button type="button" role="tab" id="m-cam" aria-selected="false" aria-controls="p-cam">Escanear con cámara</button></div>
+      <div id="p-man" role="tabpanel"><form id="f" class="stack"><div><label for="c">Código del boleto</label><textarea id="c" name="codigo" rows="2" required autocomplete="off"></textarea></div><button type="submit">Validar entrada</button></form></div>
+      <div id="p-cam" role="tabpanel" hidden><div class="cam"><video id="vid" playsinline muted></video><div class="cam-frame" aria-hidden="true"></div></div>
+        <p id="cam-msg" class="small muted" role="status" style="margin:.6rem 0">Pulsa «Abrir cámara» y apunta al código QR del boleto.</p>
+        <div class="row"><button type="button" id="cam-start">Abrir cámara</button><button type="button" id="cam-stop" class="alt" hidden>Detener cámara</button></div></div>
+      <div id="res" style="margin-top:1rem" aria-live="polite"></div></div>`;
+    const msg = (t) => { const m = $('#cam-msg'); if (m) m.textContent = t; };
+    function detener() {
+      clearInterval(scanTimer); scanTimer = null;
+      stream?.getTracks().forEach((t) => t.stop()); stream = null;
+      const v = $('#vid'); if (v) v.srcObject = null;
+      const st = $('#cam-start'); const sp = $('#cam-stop');
+      if (st) st.hidden = false;
+      if (sp) sp.hidden = true;
+    }
+    cleanups.push(detener); // apaga la cámara al salir de esta pantalla
+    function modo(cam) {
+      $('#m-man').setAttribute('aria-selected', String(!cam)); $('#m-cam').setAttribute('aria-selected', String(cam));
+      $('#p-man').hidden = cam; $('#p-cam').hidden = !cam;
+      if (!cam) detener();
+    }
+    async function validar(codigo) {
+      try {
+        const r = await api('reservas', 'POST', '/boletos/validar', { codigo: codigo.trim() });
+        $('#res').innerHTML = `<div class="hint"><b>Entrada válida.</b> Asiento ${esc(r.boleto.etiqueta)}, sección ${esc(r.boleto.seccion_tipo)}. Reserva ${esc(r.reserva.codigo)} (${esc(r.reserva.estado)}).</div>`;
+        toast('Boleto validado', 'good');
+      } catch (er) {
+        $('#res').innerHTML = `<div class="err"><b>No se permite la entrada.</b> ${esc(er.message)}</div>`;
+        fail(er);
+      }
+    }
+    async function abrirCamara() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        msg(window.isSecureContext === false ? 'La cámara solo funciona con https o en localhost. Ingresa el código manualmente.' : 'Este navegador no permite usar la cámara. Ingresa el código manualmente.');
+        return;
+      }
+      msg('Solicitando permiso para usar la cámara...');
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      } catch (e) {
+        msg(e.name === 'NotAllowedError' ? 'No diste permiso para usar la cámara. Actívalo en el navegador o ingresa el código manualmente.'
+          : e.name === 'NotFoundError' ? 'No se encontró ninguna cámara en este dispositivo.' : `No se pudo abrir la cámara (${e.name}).`);
+        return;
+      }
+      const v = $('#vid'); v.srcObject = stream; await v.play().catch(() => {});
+      msg('Cargando el lector de QR...');
+      const leer = await crearLector();
+      if (!leer) { detener(); msg('No se pudo iniciar el lector de QR (falta el archivo vendor/jsQR.js en el servidor del frontend). Ingresa el código manualmente.'); return; }
+      $('#cam-start').hidden = true; $('#cam-stop').hidden = false;
+      msg('Apunta la cámara al código QR del boleto.');
+      scanTimer = setInterval(async () => {
+        if (ocupado || !stream) return;
+        ocupado = true;
+        try {
+          const codigo = await leer(v);
+          if (codigo) {
+            detener(); $('#c').value = codigo; msg('Código leído. Validando...');
+            await validar(codigo);
+            msg('Pulsa «Abrir cámara» para escanear el siguiente boleto.');
+          }
+        } catch { /* cuadro sin QR: sigue intentando */ } finally { ocupado = false; }
+      }, 300);
+    }
+    $('#m-man').addEventListener('click', () => modo(false));
+    $('#m-cam').addEventListener('click', () => modo(true));
+    $('#cam-start').addEventListener('click', abrirCamara);
+    $('#cam-stop').addEventListener('click', () => { detener(); msg('Cámara detenida.'); });
+    $('#f').addEventListener('submit', (e) => { e.preventDefault(); validar(new FormData(e.target).get('codigo')); });
   }
 
   async function tabAuditoria(box) {
     const rs = await api('usuarios', 'GET', '/auditoria?limit=100');
-    box.innerHTML = `<p class="muted">Registro de acciones de administradores y operadores. Los envían Películas y Reservas a Usuarios.</p><div class="tablewrap"><table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>Descripción</th></tr></thead><tbody>
+    box.innerHTML = `<p class="muted">Registro de acciones de administradores y operadores. Los envían Películas y Reservas a Usuarios.</p>${buscadorHtml('Buscar por usuario, acción, entidad o descripción')}<div class="tablewrap"><table><thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>Descripción</th></tr></thead><tbody>
       ${rs.map((a) => `<tr><td class="small">${new Date(a.fecha_accion).toLocaleString('es-EC')}</td><td>${esc(a.username || a.usuario_id)}</td><td>${esc(a.accion)}</td><td>${esc(a.entidad)} ${a.entidad_id ?? ''}</td><td>${esc(a.descripcion || '')}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Sin registros</td></tr>'}</tbody></table></div>`;
+    enlazarBuscador(box);
   }
 
   // ================= Estado de las conexiones =================
   async function vConexiones() {
+    if (needLogin()) return;
+    if (!esAdmin()) { location.hash = '#/'; toast('Esta sección es solo para administradores', 'bad'); return; }
     titulo('Conexiones');
     const svcs = [['usuarios', 'Usuarios', 'Node.js, OAuth 2.0 y JWT RS256'], ['peliculas', 'Películas', 'Python y FastAPI'], ['reservas', 'Reservas', 'Node.js y Express']];
     main.innerHTML = `<h1>Conexiones entre servicios</h1><p class="muted">El navegador habla con los tres microservicios; ellos se hablan entre sí por REST. Abre «Llamadas API» (abajo a la derecha) para ver cada petición.</p>
@@ -496,6 +623,7 @@
     [/^\/mis-reservas$/, vMisReservas], [/^\/panel(?:\/(\w+))?$/, vPanel], [/^\/conexiones$/, vConexiones]];
   async function route() {
     timers.splice(0).forEach(clearInterval);
+    cleanups.splice(0).forEach((f) => f());
     renderTopbar();
     const path = location.hash.slice(1) || '/';
     for (const [re, fn] of routes) {
@@ -511,6 +639,6 @@
     main.innerHTML = '<div class="empty">No encontramos esa página. <a href="#/">Volver a la cartelera</a></div>';
   }
   window.addEventListener('hashchange', route);
-  window.__cine = { route };
+  window.__cine = { route, cargarJsQR };
   route();
 })();
