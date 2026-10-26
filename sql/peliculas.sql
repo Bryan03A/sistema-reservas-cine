@@ -1,4 +1,4 @@
--- Cine Andino · Microservicio de Películas (películas, funciones, salas, secciones, filas, asientos)
+-- Cine Andino · Microservicio de Películas (películas, pósters, funciones, salas, secciones, filas, asientos)
 -- Respaldo: crea y puebla las tablas SIN usar la aplicación (generado con pg_dump desde la semilla).
 -- Úsalo solo si la semilla automática falla:  createdb db_peliculas && psql -d db_peliculas -f sql/peliculas.sql
 -- Las referencias entre microservicios (cliente_id, funcion_id, asiento_id) son IDs lógicos, sin clave foránea.
@@ -148,6 +148,19 @@ CREATE SEQUENCE public.pelicula_id_seq
 --
 
 ALTER SEQUENCE public.pelicula_id_seq OWNED BY public.pelicula.id;
+
+
+--
+-- Name: pelicula_imagen; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.pelicula_imagen (
+    pelicula_id integer NOT NULL,
+    contenido bytea NOT NULL,
+    tipo character varying(20) NOT NULL,
+    version integer NOT NULL,
+    actualizado_en timestamp without time zone DEFAULT now() NOT NULL
+);
 
 
 --
@@ -386,40 +399,46 @@ INSERT INTO public.fila (id, seccion_id, letra) VALUES (14, 6, 'G');
 -- Data for Name: funcion; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (1, 1, 1, '2026-10-24', '15:00:00', '16:52:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (2, 2, 1, '2026-10-24', '18:00:00', '19:44:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (3, 3, 1, '2026-10-24', '21:00:00', '22:36:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (4, 4, 2, '2026-10-24', '16:00:00', '18:11:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (5, 1, 2, '2026-10-24', '19:00:00', '20:52:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (6, 2, 2, '2026-10-24', '21:45:00', '23:29:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (7, 2, 1, '2026-10-25', '15:00:00', '16:44:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (8, 3, 1, '2026-10-25', '18:00:00', '19:36:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (9, 4, 1, '2026-10-25', '21:00:00', '23:11:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (10, 1, 2, '2026-10-25', '16:00:00', '17:52:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (11, 2, 2, '2026-10-25', '19:00:00', '20:44:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (12, 3, 2, '2026-10-25', '21:45:00', '23:21:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (13, 3, 1, '2026-10-26', '15:00:00', '16:36:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (14, 4, 1, '2026-10-26', '18:00:00', '20:11:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (15, 1, 1, '2026-10-26', '21:00:00', '22:52:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (16, 2, 2, '2026-10-26', '16:00:00', '17:44:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (17, 3, 2, '2026-10-26', '19:00:00', '20:36:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (18, 4, 2, '2026-10-26', '21:45:00', '23:56:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (19, 4, 1, '2026-10-27', '15:00:00', '17:11:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (20, 1, 1, '2026-10-27', '18:00:00', '19:52:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (21, 2, 1, '2026-10-27', '21:00:00', '22:44:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (22, 3, 2, '2026-10-27', '16:00:00', '17:36:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (23, 4, 2, '2026-10-27', '19:00:00', '21:11:00', 'ACTIVA');
-INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (24, 1, 2, '2026-10-27', '21:45:00', '23:37:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (1, 1, 1, '2026-10-25', '15:00:00', '16:52:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (2, 2, 1, '2026-10-25', '18:00:00', '19:44:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (3, 3, 1, '2026-10-25', '21:00:00', '22:36:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (4, 4, 2, '2026-10-25', '16:00:00', '18:11:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (5, 1, 2, '2026-10-25', '19:00:00', '20:52:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (6, 2, 2, '2026-10-25', '21:45:00', '23:29:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (7, 2, 1, '2026-10-26', '15:00:00', '16:44:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (8, 3, 1, '2026-10-26', '18:00:00', '19:36:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (9, 4, 1, '2026-10-26', '21:00:00', '23:11:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (10, 1, 2, '2026-10-26', '16:00:00', '17:52:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (11, 2, 2, '2026-10-26', '19:00:00', '20:44:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (12, 3, 2, '2026-10-26', '21:45:00', '23:21:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (13, 3, 1, '2026-10-27', '15:00:00', '16:36:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (14, 4, 1, '2026-10-27', '18:00:00', '20:11:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (15, 1, 1, '2026-10-27', '21:00:00', '22:52:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (16, 2, 2, '2026-10-27', '16:00:00', '17:44:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (17, 3, 2, '2026-10-27', '19:00:00', '20:36:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (18, 4, 2, '2026-10-27', '21:45:00', '23:56:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (19, 4, 1, '2026-10-28', '15:00:00', '17:11:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (20, 1, 1, '2026-10-28', '18:00:00', '19:52:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (21, 2, 1, '2026-10-28', '21:00:00', '22:44:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (22, 3, 2, '2026-10-28', '16:00:00', '17:36:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (23, 4, 2, '2026-10-28', '19:00:00', '21:11:00', 'ACTIVA');
+INSERT INTO public.funcion (id, pelicula_id, sala_id, fecha, hora_inicio, hora_fin, estado) VALUES (24, 1, 2, '2026-10-28', '21:45:00', '23:37:00', 'ACTIVA');
 
 
 --
 -- Data for Name: pelicula; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO public.pelicula (id, nombre, descripcion, genero, duracion_min, clasificacion, estado, created_at, updated_at) VALUES (1, 'El Último Faro', 'Un farero y una científica descubren qué guarda la luz que nunca se apaga.', 'Drama', 112, '+12', 'ACTIVA', '2026-10-25 03:06:07.87678', '2026-10-25 03:06:07.87678');
-INSERT INTO public.pelicula (id, nombre, descripcion, genero, duracion_min, clasificacion, estado, created_at, updated_at) VALUES (2, 'Noche en el Altiplano', 'Una periodista queda atrapada en un pueblo andino donde nadie quiere hablar.', 'Suspenso', 104, '+15', 'ACTIVA', '2026-10-25 03:06:07.87678', '2026-10-25 03:06:07.87678');
-INSERT INTO public.pelicula (id, nombre, descripcion, genero, duracion_min, clasificacion, estado, created_at, updated_at) VALUES (3, 'Los Guardianes del Bosque', 'Tres amigos protegen un bosque mágico de una constructora misteriosa.', 'Animación', 96, 'TP', 'ACTIVA', '2026-10-25 03:06:07.87678', '2026-10-25 03:06:07.87678');
-INSERT INTO public.pelicula (id, nombre, descripcion, genero, duracion_min, clasificacion, estado, created_at, updated_at) VALUES (4, 'Código Cuántico', 'Una hacker descubre que su algoritmo puede reescribir el pasado reciente.', 'Ciencia ficción', 131, '+12', 'ACTIVA', '2026-10-25 03:06:07.87678', '2026-10-25 03:06:07.87678');
+INSERT INTO public.pelicula (id, nombre, descripcion, genero, duracion_min, clasificacion, estado, created_at, updated_at) VALUES (1, 'El Último Faro', 'Un farero y una científica descubren qué guarda la luz que nunca se apaga.', 'Drama', 112, '+12', 'ACTIVA', '2026-10-26 01:48:01.967185', '2026-10-26 01:48:01.967185');
+INSERT INTO public.pelicula (id, nombre, descripcion, genero, duracion_min, clasificacion, estado, created_at, updated_at) VALUES (2, 'Noche en el Altiplano', 'Una periodista queda atrapada en un pueblo andino donde nadie quiere hablar.', 'Suspenso', 104, '+15', 'ACTIVA', '2026-10-26 01:48:01.967185', '2026-10-26 01:48:01.967185');
+INSERT INTO public.pelicula (id, nombre, descripcion, genero, duracion_min, clasificacion, estado, created_at, updated_at) VALUES (3, 'Los Guardianes del Bosque', 'Tres amigos protegen un bosque mágico de una constructora misteriosa.', 'Animación', 96, 'TP', 'ACTIVA', '2026-10-26 01:48:01.967185', '2026-10-26 01:48:01.967185');
+INSERT INTO public.pelicula (id, nombre, descripcion, genero, duracion_min, clasificacion, estado, created_at, updated_at) VALUES (4, 'Código Cuántico', 'Una hacker descubre que su algoritmo puede reescribir el pasado reciente.', 'Ciencia ficción', 131, '+12', 'ACTIVA', '2026-10-26 01:48:01.967185', '2026-10-26 01:48:01.967185');
+
+
+--
+-- Data for Name: pelicula_imagen; Type: TABLE DATA; Schema: public; Owner: -
+--
+
 
 
 --
@@ -525,6 +544,14 @@ ALTER TABLE ONLY public.funcion
 
 
 --
+-- Name: pelicula_imagen pelicula_imagen_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pelicula_imagen
+    ADD CONSTRAINT pelicula_imagen_pkey PRIMARY KEY (pelicula_id);
+
+
+--
 -- Name: pelicula pelicula_pkey; Type: CONSTRAINT; Schema: public; Owner: -
 --
 
@@ -608,6 +635,14 @@ ALTER TABLE ONLY public.funcion
 
 ALTER TABLE ONLY public.funcion
     ADD CONSTRAINT funcion_sala_id_fkey FOREIGN KEY (sala_id) REFERENCES public.sala(id);
+
+
+--
+-- Name: pelicula_imagen pelicula_imagen_pelicula_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.pelicula_imagen
+    ADD CONSTRAINT pelicula_imagen_pelicula_id_fkey FOREIGN KEY (pelicula_id) REFERENCES public.pelicula(id) ON DELETE CASCADE;
 
 
 --

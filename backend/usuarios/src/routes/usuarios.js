@@ -4,7 +4,10 @@ import { autenticar, autorizar } from '../security.js';
 import { Usuario, Rol, Cliente } from '../model/entities/index.js';
 import { sequelize } from '../db.js';
 import { config } from '../config.js';
-import { crearCuenta, notificarCredenciales, auditar, vistaUsuario, normalizar } from '../cuentas.js';
+import bcrypt from 'bcryptjs';
+import { crearCuenta, notificarCredenciales, auditar, vistaUsuario, vistaCompleta, normalizar, guardarFoto, borrarFoto } from '../cuentas.js';
+import { ClienteFoto } from '../model/entities/index.js';
+import { rawImagen, leerImagen } from '../imagen.js';
 import { crearUsuarioSchema, actualizarUsuarioSchema, estadoSchema, perfilSchema } from '../schemas.js';
 
 const router = Router();
@@ -41,7 +44,7 @@ router.get('/usuarios', autenticar, staff, asyncH(async (req, res) => {
 router.get('/usuarios/:id', autenticar, staff, asyncH(async (req, res) => {
   const u = await cargar(Number(req.params.id));
   verificarAlcance(req, u.Rol.nombre);
-  res.json(vistaUsuario(u));
+  res.json(await vistaCompleta(u));
 }));
 
 router.post('/usuarios', autenticar, staff, asyncH(async (req, res) => {
@@ -55,22 +58,32 @@ router.post('/usuarios', autenticar, staff, asyncH(async (req, res) => {
   res.status(201).json(out);
 }));
 
-router.put('/usuarios/:id', autenticar, staff, asyncH(async (req, res) => {
-  const { rol, ...datos } = actualizarUsuarioSchema.parse(req.body);
+// Solo el ADMINISTRADOR edita a cualquier persona: datos personales (incluido DNI), rol y contraseña nueva sin pedir la anterior
+router.put('/usuarios/:id', autenticar, autorizar('ADMINISTRADOR'), asyncH(async (req, res) => {
+  const { rol, password_nueva, password_confirmacion, ...datos } = actualizarUsuarioSchema.parse(req.body);
   const u = await cargar(Number(req.params.id));
-  verificarAlcance(req, u.Rol.nombre);
+  const cambios = [];
   if (rol && rol !== u.Rol.nombre) {
-    if (req.auth.rol !== 'ADMINISTRADOR') throw new AppError(403, 'SIN_PERMISO', 'Solo el administrador puede cambiar roles');
-    if (u.id === req.auth.sub) throw new AppError(422, 'REGLA_NEGOCIO', 'No puedes cambiar tu propio rol');
+    if (u.id === req.auth.sub) throw new AppError(422, 'REGLA_NEGOCIO', 'No puedes cambiar tu propio rol (otro administrador debe hacerlo)');
     const nuevo = await Rol.findOne({ where: { nombre: rol, estado: 'ACTIVO' } });
     if (!nuevo) throw new AppError(422, 'ROL_INVALIDO', 'Rol inexistente o inactivo');
     u.rol_id = nuevo.id;
-    await u.save();
+    cambios.push(`rol ${u.Rol.nombre} → ${rol}`);
+  }
+  if (password_nueva) {
+    u.password_hash = await bcrypt.hash(password_nueva, 10);
+    cambios.push('contraseña restablecida');
   }
   const limpio = Object.fromEntries(Object.entries(datos).map(([k, v]) => [k, v === '' ? null : v]));
-  if (Object.keys(limpio).length) await u.Cliente.update(limpio);
-  await auditar(req.auth.sub, 'MODIFICAR', 'usuario', u.id, `Datos de ${u.username} modificados`);
-  res.json(vistaUsuario(await cargar(u.id)));
+  if (limpio.dni && limpio.dni !== u.Cliente.dni && (await Cliente.findOne({ where: { dni: limpio.dni } }))) throw new AppError(409, 'DNI_DUPLICADO', 'Ya existe un usuario con ese DNI');
+  if (limpio.correo && limpio.correo !== u.Cliente.correo && (await Cliente.findOne({ where: { correo: limpio.correo } }))) throw new AppError(409, 'CORREO_DUPLICADO', 'Ya existe un usuario con ese correo');
+  await sequelize.transaction(async (transaction) => {
+    await u.save({ transaction });
+    if (Object.keys(limpio).length) await u.Cliente.update(limpio, { transaction });
+  });
+  if (Object.keys(limpio).length) cambios.push('datos personales');
+  await auditar(req.auth.sub, 'MODIFICAR', 'usuario', u.id, `${u.username}: ${cambios.join(', ') || 'sin cambios'}`);
+  res.json(await vistaCompleta(await cargar(u.id)));
 }));
 
 router.patch('/usuarios/:id/estado', autenticar, staff, asyncH(async (req, res) => {
@@ -93,18 +106,62 @@ router.get('/clientes', autenticar, staff, asyncH(async (req, res) => {
 }));
 
 router.get('/clientes/me', autenticar, asyncH(async (req, res) => {
-  res.json(vistaUsuario(await cargar(req.auth.sub)));
+  res.json(await vistaCompleta(await cargar(req.auth.sub)));
 }));
 
+// El propio usuario edita su perfil: nombres, apellido, nacionalidad, teléfono, dirección y correo. El DNI y el usuario están bloqueados.
 router.put('/clientes/me', autenticar, asyncH(async (req, res) => {
+  for (const k of ['dni', 'username', 'rol', 'estado', 'password_nueva']) {
+    if (k in (req.body ?? {})) throw new AppError(403, 'CAMPO_NO_EDITABLE', `El campo "${k}" no se puede modificar desde tu perfil`);
+  }
   const datos = perfilSchema.parse(req.body);
   const u = await cargar(req.auth.sub);
-  await u.Cliente.update(datos);
-  res.json(vistaUsuario(await cargar(req.auth.sub)));
+  const limpio = Object.fromEntries(Object.entries(datos).map(([k, v]) => [k, v === '' ? null : v]));
+  if (limpio.correo && limpio.correo !== u.Cliente.correo && (await Cliente.findOne({ where: { correo: limpio.correo } }))) {
+    throw new AppError(409, 'CORREO_DUPLICADO', 'Ese correo ya está registrado por otro usuario');
+  }
+  await u.Cliente.update(limpio);
+  res.json(await vistaCompleta(await cargar(req.auth.sub)));
 }));
 
 router.get('/roles', autenticar, autorizar('ADMINISTRADOR'), asyncH(async (req, res) => {
   res.json(await Rol.findAll({ order: [['id', 'ASC']] }));
+}));
+
+// ---- Foto de perfil: la ve y la cambia su dueño; el personal la ve; solo el administrador cambia la de otros
+function destinoFoto(req) {
+  const id = req.params.id === 'me' ? req.auth.sub : Number(req.params.id);
+  if (!Number.isInteger(id)) throw new AppError(400, 'VALIDACION', 'Id de usuario inválido');
+  return id;
+}
+const puedeVer = (req, id) => id === req.auth.sub || req.auth.rol === 'ADMINISTRADOR' || req.auth.rol === 'OPERADOR';
+const puedeEditar = (req, id) => id === req.auth.sub || req.auth.rol === 'ADMINISTRADOR';
+
+router.get('/usuarios/:id/foto', autenticar, asyncH(async (req, res) => {
+  const id = destinoFoto(req);
+  if (!puedeVer(req, id)) throw new AppError(403, 'SIN_PERMISO', 'No puedes ver la foto de otro usuario');
+  const u = await cargar(id);
+  const f = await ClienteFoto.findByPk(u.Cliente.id);
+  if (!f) throw new AppError(404, 'SIN_FOTO', 'El usuario no tiene foto');
+  res.set({ 'Content-Type': f.tipo, 'Cache-Control': 'private, max-age=300' }).send(f.contenido);
+}));
+
+router.put('/usuarios/:id/foto', autenticar, rawImagen(), asyncH(async (req, res) => {
+  const id = destinoFoto(req);
+  if (!puedeEditar(req, id)) throw new AppError(403, 'SIN_PERMISO', 'Solo tú o un administrador pueden cambiar esta foto');
+  const u = await cargar(id);
+  const version = await guardarFoto(u.Cliente.id, leerImagen(req));
+  if (id !== req.auth.sub) await auditar(req.auth.sub, 'MODIFICAR', 'usuario', id, `Foto de ${u.username} actualizada`);
+  res.json({ foto_version: version });
+}));
+
+router.delete('/usuarios/:id/foto', autenticar, asyncH(async (req, res) => {
+  const id = destinoFoto(req);
+  if (!puedeEditar(req, id)) throw new AppError(403, 'SIN_PERMISO', 'Solo tú o un administrador pueden quitar esta foto');
+  const u = await cargar(id);
+  await borrarFoto(u.Cliente.id);
+  if (id !== req.auth.sub) await auditar(req.auth.sub, 'MODIFICAR', 'usuario', id, `Foto de ${u.username} eliminada`);
+  res.json({ foto_version: null });
 }));
 
 export default router;

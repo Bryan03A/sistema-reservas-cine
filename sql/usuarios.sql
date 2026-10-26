@@ -1,4 +1,4 @@
--- Cine Andino · Microservicio de Usuarios (roles, usuarios, clientes, auditoría)
+-- Cine Andino · Microservicio de Usuarios (roles, usuarios, clientes, fotos de perfil, auditoría)
 -- Respaldo: crea y puebla las tablas SIN usar la aplicación (generado con pg_dump desde la semilla).
 -- Úsalo solo si la semilla automática falla:  createdb db_usuarios && psql -d db_usuarios -f sql/usuarios.sql
 -- Las referencias entre microservicios (cliente_id, funcion_id, asiento_id) son IDs lógicos, sin clave foránea.
@@ -30,6 +30,19 @@ CREATE TABLE public.cliente (
     direccion character varying(200),
     telefono character varying(15),
     correo character varying(120) NOT NULL
+);
+
+
+--
+-- Name: cliente_foto; Type: TABLE; Schema: public; Owner: -
+--
+
+CREATE TABLE public.cliente_foto (
+    cliente_id integer NOT NULL,
+    contenido bytea NOT NULL,
+    tipo character varying(20) NOT NULL,
+    version integer DEFAULT 1 NOT NULL,
+    actualizado_en timestamp with time zone NOT NULL
 );
 
 
@@ -194,6 +207,12 @@ INSERT INTO public.cliente (id, usuario_id, primer_nombre, segundo_nombre, apell
 
 
 --
+-- Data for Name: cliente_foto; Type: TABLE DATA; Schema: public; Owner: -
+--
+
+
+
+--
 -- Data for Name: registro_auditoria; Type: TABLE DATA; Schema: public; Owner: -
 --
 
@@ -212,10 +231,10 @@ INSERT INTO public.rol (id, nombre, descripcion, estado) VALUES (3, 'CLIENTE', '
 -- Data for Name: usuario; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO public.usuario (id, username, password_hash, rol_id, estado, ultima_conexion, created_at) VALUES (1, 'admin', '$2a$10$mW3Hku.X2HbZXVr/7v4M0OJj39KmV1brNd8puKjm61U/Urj96ig6S', 1, 'ACTIVO', NULL, '2026-10-25 03:06:04.84+00');
-INSERT INTO public.usuario (id, username, password_hash, rol_id, estado, ultima_conexion, created_at) VALUES (2, 'operador', '$2a$10$7y54XWFJdm.Yr8zZz6XuNedlwYww.ny4VskHw13Ru4Wr0XRhy78qW', 2, 'ACTIVO', NULL, '2026-10-25 03:06:04.932+00');
-INSERT INTO public.usuario (id, username, password_hash, rol_id, estado, ultima_conexion, created_at) VALUES (3, 'cliente1', '$2a$10$jTDKvKex1ecN4ED35FS75ujHUkOFYj/oMnlT/q04mEfcmB9.vJL1y', 3, 'ACTIVO', NULL, '2026-10-25 03:06:05.015+00');
-INSERT INTO public.usuario (id, username, password_hash, rol_id, estado, ultima_conexion, created_at) VALUES (4, 'cliente2', '$2a$10$JBraHocVucXYs9bebLB.qOSRfdAsk85sgdiXPM38AbbHRB/dyXC/2', 3, 'ACTIVO', NULL, '2026-10-25 03:06:05.136+00');
+INSERT INTO public.usuario (id, username, password_hash, rol_id, estado, ultima_conexion, created_at) VALUES (1, 'admin', '$2a$10$nsWQbeUzV0dKQJiErQcKsuwlV/ln6KlQY7wRTsZ6532A/0CJcr1Ra', 1, 'ACTIVO', NULL, '2026-10-26 01:47:58.912+00');
+INSERT INTO public.usuario (id, username, password_hash, rol_id, estado, ultima_conexion, created_at) VALUES (2, 'operador', '$2a$10$Tsri5moafPwMTdMb/hrNu.cUarZc5hajJm7NxiXzOF0GtobqeFnHa', 2, 'ACTIVO', NULL, '2026-10-26 01:47:58.999+00');
+INSERT INTO public.usuario (id, username, password_hash, rol_id, estado, ultima_conexion, created_at) VALUES (3, 'cliente1', '$2a$10$c/IzINVR9nJPaSnwTMpYuu9zrTQZQ2/NtW.YBadtozY1wUXTQIGHi', 3, 'ACTIVO', NULL, '2026-10-26 01:47:59.086+00');
+INSERT INTO public.usuario (id, username, password_hash, rol_id, estado, ultima_conexion, created_at) VALUES (4, 'cliente2', '$2a$10$nemtXDi8JbjyPMQ.IxkvC.95SvH.YIirM4nwOyxduI03lXjo7y1Dm', 3, 'ACTIVO', NULL, '2026-10-26 01:47:59.201+00');
 
 
 --
@@ -260,6 +279,14 @@ ALTER TABLE ONLY public.cliente
 
 ALTER TABLE ONLY public.cliente
     ADD CONSTRAINT cliente_dni_key UNIQUE (dni);
+
+
+--
+-- Name: cliente_foto cliente_foto_pkey; Type: CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cliente_foto
+    ADD CONSTRAINT cliente_foto_pkey PRIMARY KEY (cliente_id);
 
 
 --
@@ -316,6 +343,14 @@ ALTER TABLE ONLY public.usuario
 
 ALTER TABLE ONLY public.usuario
     ADD CONSTRAINT usuario_username_key UNIQUE (username);
+
+
+--
+-- Name: cliente_foto cliente_foto_cliente_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: -
+--
+
+ALTER TABLE ONLY public.cliente_foto
+    ADD CONSTRAINT cliente_foto_cliente_id_fkey FOREIGN KEY (cliente_id) REFERENCES public.cliente(id) ON UPDATE CASCADE ON DELETE CASCADE;
 
 
 --

@@ -18,6 +18,13 @@ async function call(base, method, path, { token, body } = {}) {
 }
 const login = async (username, password) => (await call(U, 'POST', '/oauth/token', { body: { grant_type: 'password', username, password } })).body;
 const isoDate = (d) => d.toISOString().slice(0, 10);
+const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+async function raw(base, method, path, token, bytes, type) {
+  const res = await fetch(base + path, { method, headers: { 'Content-Type': type, ...(token ? { Authorization: `Bearer ${token}` } : {}) }, body: bytes });
+  const buf = Buffer.from(await res.arrayBuffer());
+  let json; try { json = JSON.parse(buf.toString()); } catch { json = null; }
+  return { status: res.status, type: res.headers.get('content-type'), etag: res.headers.get('etag'), buf, body: json };
+}
 
 section('1. Servicios y autenticación');
 for (const [n, b] of [['usuarios', U], ['peliculas', P], ['reservas', R]]) {
@@ -167,6 +174,105 @@ check('operador no accede a la auditoría → 403', (await call(U, 'GET', '/audi
 const off = await call(U, 'PATCH', `/usuarios/${reg.body.usuario_id}/estado`, { token: admin.access_token, body: { estado: 'INACTIVO' } });
 check('el administrador desactiva una cuenta', off.status === 200);
 check('la cuenta desactivada ya no inicia sesión (403)', (await call(U, 'POST', '/oauth/token', { body: { grant_type: 'password', username: reg.body.credenciales_demo.username, password: reg.body.credenciales_demo.password } })).status === 403);
+
+
+section('10. Acceso de desarrollo, registro y elección de usuario');
+const mal = await call(U, 'POST', '/auth/dev-access', { body: { comando: '/incorrecto' } });
+check('comando de desarrollo incorrecto responde como un login fallido', mal.status === 401 && mal.body.code === 'CREDENCIALES_INVALIDAS');
+const devOk = await call(U, 'POST', '/auth/dev-access', { body: { comando: '/dev' } });
+check('el comando correcto devuelve las cuentas de demostración', devOk.status === 200 && devOk.body.cuentas.length === 4 && devOk.body.cuentas.some((c) => c.username === 'admin'));
+const dniN = String(1840000000 + Math.floor(Math.random() * 9999999));
+const rN2 = await call(U, 'POST', '/auth/register', { body: { primer_nombre: 'Elena', apellido: 'Vaca', dni: dniN, correo: `elena${Date.now()}@correo.test` } });
+check('el registro asigna un usuario único y entrega un token de configuración', rN2.status === 201 && rN2.body.username && rN2.body.setup_token);
+const ST = rN2.body.setup_token; const pass0 = rN2.body.credenciales_demo.password; const userDef = rN2.body.username;
+check('el token de configuración no sirve en otros endpoints → 401', (await call(U, 'GET', '/clientes/me', { token: ST })).status === 401);
+check('un usuario como "/dev" nunca es válido → 400', (await call(U, 'POST', '/auth/setup/username', { token: ST, body: { username: '/dev' } })).status === 400);
+check('un nombre reservado ("admin") → 422', (await call(U, 'POST', '/auth/setup/username', { token: ST, body: { username: 'admin' } })).status === 422);
+check('un nombre ya ocupado → 409', (await call(U, 'POST', '/auth/setup/username', { token: ST, body: { username: 'cliente1' } })).status === 409);
+const foto0 = await raw(U, 'PUT', '/auth/setup/foto', ST, PNG, 'image/png');
+check('la foto se puede subir al registrarse', foto0.status === 200 && foto0.body.foto_version === 1);
+const elegido = `elena.vaca${Date.now() % 100000}`;
+const cambio = await call(U, 'POST', '/auth/setup/username', { token: ST, body: { username: elegido.toUpperCase() } });
+check('el cliente elige su usuario (se normaliza a minúsculas)', cambio.status === 200 && cambio.body.username === elegido && cambio.body.cambiado === true, JSON.stringify(cambio.body));
+check('el usuario asignado por el sistema deja de existir', (await call(U, 'POST', '/oauth/token', { body: { grant_type: 'password', username: userDef, password: pass0 } })).status === 401);
+const lg = await login(elegido, pass0);
+check('inicia sesión con el usuario elegido y la contraseña inicial', !!lg.access_token && lg.primer_nombre === 'Elena' && lg.foto_version === 1);
+check('tras el primer ingreso el usuario ya no se puede cambiar → 403', (await call(U, 'POST', '/auth/setup/username', { token: ST, body: { username: 'otro.nombre' } })).status === 403);
+
+section('11. Perfil propio, contraseña y fotos');
+const TK = lg.access_token;
+const ed = await call(U, 'PUT', '/clientes/me', { token: TK, body: { primer_nombre: 'Elena', segundo_nombre: 'Sofía', apellido: 'Vaca', nacionalidad: 'Peruana', telefono: '0999111222', direccion: 'Av. Prueba 123', correo: `elena.nueva${Date.now()}@correo.test` } });
+check('el usuario edita nombres, nacionalidad, teléfono, dirección y correo', ed.status === 200 && ed.body.cliente.segundo_nombre === 'Sofía' && ed.body.cliente.nacionalidad === 'Peruana');
+check('el DNI queda bloqueado (403) y no cambia', (await call(U, 'PUT', '/clientes/me', { token: TK, body: { dni: '1799999999' } })).status === 403 && (await call(U, 'GET', '/clientes/me', { token: TK })).body.cliente.dni === dniN);
+check('no puede cambiarse el rol ni el usuario por esta vía → 403', (await call(U, 'PUT', '/clientes/me', { token: TK, body: { rol: 'ADMINISTRADOR' } })).status === 403 && (await call(U, 'PUT', '/clientes/me', { token: TK, body: { username: 'x' } })).status === 403);
+check('el correo de otra persona → 409', (await call(U, 'PUT', '/clientes/me', { token: TK, body: { correo: 'ana.torres@correo.test' } })).status === 409);
+check('teléfono inválido → 400', (await call(U, 'PUT', '/clientes/me', { token: TK, body: { telefono: 'abc' } })).status === 400);
+const cp = (b) => call(U, 'POST', '/auth/change-password', { token: TK, body: b });
+check('contraseña: la confirmación debe coincidir → 400', (await cp({ password_actual: pass0, password_nueva: 'ClaveNueva1', password_confirmacion: 'Otra1234' })).status === 400);
+check('contraseña: la actual debe ser correcta → 401', (await cp({ password_actual: 'incorrecta', password_nueva: 'ClaveNueva1', password_confirmacion: 'ClaveNueva1' })).status === 401);
+check('contraseña: debe cumplir la política → 400', (await cp({ password_actual: pass0, password_nueva: 'corta', password_confirmacion: 'corta' })).status === 400);
+check('contraseña: cambio correcto', (await cp({ password_actual: pass0, password_nueva: 'ClaveNueva1', password_confirmacion: 'ClaveNueva1' })).status === 200);
+check('la contraseña anterior deja de servir y la nueva sí', (await call(U, 'POST', '/oauth/token', { body: { grant_type: 'password', username: elegido, password: pass0 } })).status === 401 && !!(await login(elegido, 'ClaveNueva1')).access_token);
+const fMe = await raw(U, 'GET', '/usuarios/me/foto', TK);
+check('la foto se descarga igual que se subió', fMe.status === 200 && fMe.type === 'image/png' && fMe.buf.equals(PNG));
+const idElena = lg.usuario_id;
+check('otro cliente no puede ver esa foto → 403', (await raw(U, 'GET', `/usuarios/${idElena}/foto`, c1.access_token)).status === 403);
+check('el personal sí puede verla', (await raw(U, 'GET', `/usuarios/${idElena}/foto`, oper.access_token)).status === 200);
+check('el operador no puede cambiar la foto de otro → 403', (await raw(U, 'PUT', `/usuarios/${idElena}/foto`, oper.access_token, PNG, 'image/png')).status === 403);
+check('el administrador sí puede cambiar la foto → versión 2', (await raw(U, 'PUT', `/usuarios/${idElena}/foto`, admin.access_token, PNG, 'image/png')).body?.foto_version === 2);
+check('un archivo que no es imagen se rechaza → 422', (await raw(U, 'PUT', '/usuarios/me/foto', TK, Buffer.from('esto no es una imagen'), 'image/png')).status === 422);
+check('un tipo no permitido → 415', (await raw(U, 'PUT', '/usuarios/me/foto', TK, Buffer.from('hola'), 'text/plain')).status === 415);
+check('una foto de más de 1 MB → 413', (await raw(U, 'PUT', '/usuarios/me/foto', TK, Buffer.concat([PNG, Buffer.alloc(1100000)]), 'image/png')).status === 413);
+check('el usuario quita su foto', (await raw(U, 'DELETE', '/usuarios/me/foto', TK)).body?.foto_version === null && (await raw(U, 'GET', '/usuarios/me/foto', TK)).status === 404);
+
+section('12. Edición de cualquier persona (solo administrador)');
+check('el operador no puede editar a nadie → 403', (await call(U, 'PUT', `/usuarios/${idElena}`, { token: oper.access_token, body: { primer_nombre: 'X' } })).status === 403);
+check('un cliente no puede editar a nadie → 403', (await call(U, 'PUT', `/usuarios/${idElena}`, { token: c1.access_token, body: { primer_nombre: 'X' } })).status === 403);
+const ea = await call(U, 'PUT', `/usuarios/${idElena}`, { token: admin.access_token, body: { primer_nombre: 'Elenita', rol: 'OPERADOR', password_nueva: 'ClaveAdmin1', password_confirmacion: 'ClaveAdmin1', telefono: '0987000111' } });
+check('el administrador cambia datos, rol y contraseña de otra persona', ea.status === 200 && ea.body.rol === 'OPERADOR' && ea.body.cliente.primer_nombre === 'Elenita', JSON.stringify(ea.body).slice(0, 200));
+const lg2 = await login(elegido, 'ClaveAdmin1');
+check('esa persona entra con la contraseña nueva (sin que se pidiera la anterior) y con su nuevo rol', lg2.rol === 'OPERADOR');
+check('la confirmación de la contraseña nueva debe coincidir → 400', (await call(U, 'PUT', `/usuarios/${idElena}`, { token: admin.access_token, body: { password_nueva: 'ClaveAdmin2', password_confirmacion: 'Otra' } })).status === 400);
+check('el administrador puede asignar el rol Administrador', (await call(U, 'PUT', `/usuarios/${idElena}`, { token: admin.access_token, body: { rol: 'ADMINISTRADOR' } })).body.rol === 'ADMINISTRADOR');
+check('el DNI duplicado se rechaza → 409', (await call(U, 'PUT', `/usuarios/${idElena}`, { token: admin.access_token, body: { dni: '1712345678' } })).status === 409);
+check('un administrador no cambia su propio rol → 422', (await call(U, 'PUT', `/usuarios/${admin.usuario_id}`, { token: admin.access_token, body: { rol: 'CLIENTE' } })).status === 422);
+
+section('13. Películas: póster y edición sin afectar boletos ni asientos');
+const nPel = await call(P, 'POST', '/peliculas', { token: oper.access_token, body: { nombre: 'Película con póster', genero: 'Drama', duracion_min: 100, clasificacion: 'TP' } });
+const pid = nPel.body.id;
+check('una película nueva puede crearse sin imagen', nPel.status === 201 && nPel.body.imagen_url === null);
+check('un cliente no puede subir pósters → 403', (await raw(P, 'PUT', `/peliculas/${pid}/imagen`, c1.access_token, PNG, 'image/png')).status === 403);
+check('una imagen inválida se rechaza → 422', (await raw(P, 'PUT', `/peliculas/${pid}/imagen`, oper.access_token, Buffer.from('no soy imagen'), 'image/png')).status === 422);
+check('una imagen de más de 2 MB → 413', (await raw(P, 'PUT', `/peliculas/${pid}/imagen`, oper.access_token, Buffer.concat([PNG, Buffer.alloc(2200000)]), 'image/png')).status === 413);
+const up = await raw(P, 'PUT', `/peliculas/${pid}/imagen`, oper.access_token, PNG, 'image/png');
+check('el operador sube el póster', up.status === 200 && /\/imagen\?v=1$/.test(up.body.imagen_url));
+const gi = await raw(P, 'GET', `/peliculas/${pid}/imagen`);
+check('el póster es público y se descarga idéntico', gi.status === 200 && gi.type === 'image/png' && gi.buf.equals(PNG));
+check('usa caché del navegador (ETag → 304)', (await fetch(`${P}/peliculas/${pid}/imagen`, { headers: { 'If-None-Match': gi.etag } })).status === 304);
+check('la cartelera incluye la URL del póster', (await call(P, 'GET', '/peliculas')).body.find((p) => p.id === pid)?.imagen_url?.includes(`/peliculas/${pid}/imagen`));
+
+// Una función con la película, una reserva confirmada y un boleto
+const fp = await call(P, 'POST', '/funciones', { token: oper.access_token, body: { pelicula_id: pid, sala_id: 2, fecha: isoDate(new Date(Date.now() - 5 * 3600000 + 2 * 86400000)), hora_inicio: '12:00:00' } });
+check('se programa una función con esa película', fp.status === 201, JSON.stringify(fp.body));
+const asientosF = (await call(R, 'GET', `/funciones/${fp.body.id}/asientos`, { token: c1.access_token })).body.asientos.filter((x) => x.tipo === 'GENERAL').slice(0, 2);
+const rv = await call(R, 'POST', '/reservas', { token: c1.access_token, body: { funcion_id: fp.body.id, asiento_ids: asientosF.map((x) => x.asiento_id) } });
+const rvc = await call(R, 'POST', `/reservas/${rv.body.id}/confirmar`, { token: c1.access_token });
+const tokenBoleto = rvc.body.boletos[0].codigo_qr;
+check('reserva confirmada con boletos antes de editar la película', rvc.status === 200 && rvc.body.estado === 'CONFIRMADA' && rvc.body.boletos.length === 2);
+const antes = (await call(P, 'GET', `/funciones/${fp.body.id}`)).body;
+const edP = await call(P, 'PUT', `/peliculas/${pid}`, { token: oper.access_token, body: { nombre: 'Título corregido', descripcion: 'Nueva sinopsis', genero: 'Comedia', duracion_min: 180, clasificacion: '+18' } });
+check('el operador edita título, descripción, género, duración y clasificación', edP.status === 200 && edP.body.nombre === 'Título corregido' && edP.body.duracion_min === 180 && edP.body.clasificacion === '+18');
+check('editar la película conserva su póster', edP.body.imagen_url !== null);
+const despues = (await call(P, 'GET', `/funciones/${fp.body.id}`)).body;
+check('la función conserva su horario (no se recalcula con la nueva duración)', despues.hora_inicio === antes.hora_inicio && despues.hora_fin === antes.hora_fin && despues.estado === 'ACTIVA');
+const rvDesp = await call(R, 'GET', `/reservas/${rv.body.id}`, { token: c1.access_token });
+check('la reserva sigue CONFIRMADA y los boletos ACTIVOS tras editar la película', rvDesp.body.estado === 'CONFIRMADA' && rvDesp.body.boletos.every((b) => b.estado === 'ACTIVO'));
+const dispF = (await call(R, 'GET', `/funciones/${fp.body.id}/asientos`, { token: c1.access_token })).body;
+check('los asientos siguen OCUPADOS', asientosF.every((a) => dispF.asientos.find((x) => x.asiento_id === a.asiento_id).estado === 'OCUPADO'));
+check('el boleto sigue siendo válido en la puerta', (await call(R, 'POST', '/boletos/validar', { token: oper.access_token, body: { codigo: tokenBoleto } })).status === 200);
+check('la reserva muestra el título corregido', rvDesp.body.funcion.pelicula === 'Título corregido');
+check('quitar el póster', (await raw(P, 'DELETE', `/peliculas/${pid}/imagen`, oper.access_token)).body?.imagen_url === null && (await raw(P, 'GET', `/peliculas/${pid}/imagen`)).status === 404);
+await call(P, 'PATCH', `/peliculas/${pid}/estado`, { token: oper.access_token, body: { estado: 'RETIRADA' } });
 
 console.log(`\nResultado: ${ok} correctas, ${fail} fallidas`);
 process.exit(fail ? 1 : 0);

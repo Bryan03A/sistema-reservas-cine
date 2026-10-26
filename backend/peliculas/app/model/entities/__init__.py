@@ -1,7 +1,7 @@
 """Capa model/entities: cada entidad se mapea a su tabla espejo mediante el ORM (SQLAlchemy)."""
 from datetime import date, time, datetime
 from decimal import Decimal
-from sqlalchemy import String, Text, Integer, Numeric, Date, Time, DateTime, ForeignKey, UniqueConstraint, Index, func
+from sqlalchemy import LargeBinary, String, Text, Integer, Numeric, Date, Time, DateTime, ForeignKey, UniqueConstraint, Index, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from ...db import Base
 
@@ -18,6 +18,16 @@ class Pelicula(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
     funciones: Mapped[list["Funcion"]] = relationship(back_populates="pelicula")
+
+
+class PeliculaImagen(Base):
+    """Póster de la película en tabla aparte (1 a 1): así el listado de la cartelera nunca carga los bytes de la imagen."""
+    __tablename__ = "pelicula_imagen"
+    pelicula_id: Mapped[int] = mapped_column(ForeignKey("pelicula.id", ondelete="CASCADE"), primary_key=True)
+    contenido: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    tipo: Mapped[str] = mapped_column(String(20), nullable=False)  # image/jpeg | image/png | image/webp
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)  # cambia al subir otra imagen (evita caché vieja)
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
 class Sala(Base):

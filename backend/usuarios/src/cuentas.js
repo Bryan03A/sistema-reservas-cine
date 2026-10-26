@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import nodemailer from 'nodemailer';
 import { config } from './config.js';
 import { AppError } from './errors.js';
-import { Rol, Usuario, Cliente, RegistroAuditoria } from './model/entities/index.js';
+import { Rol, Usuario, Cliente, ClienteFoto, RegistroAuditoria } from './model/entities/index.js';
 
 const quitarAcentos = (s) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 // Para buscar: sin tildes y sin distinguir mayúsculas
@@ -70,6 +70,32 @@ export async function notificarCredenciales({ cliente, usuario, passwordPlano })
     return false;
   }
 }
+
+export async function enviarAvisoUsername(correo, nuevoUsername) {
+  const texto = `Tu nombre de usuario en Cine Andino ahora es: ${nuevoUsername}\n\nLa contraseña no cambió. Si no fuiste tú, contacta al administrador.`;
+  if (!config.smtp.host) { console.log(`[usuarios] (SMTP no configurado) aviso simulado a ${correo}\n${texto}`); return; }
+  try {
+    transporter ??= nodemailer.createTransport({ host: config.smtp.host, port: config.smtp.port, auth: config.smtp.user ? { user: config.smtp.user, pass: config.smtp.pass } : undefined });
+    await transporter.sendMail({ from: config.smtp.from, to: correo, subject: 'Tu nombre de usuario fue actualizado', text: texto });
+  } catch (e) { console.error('[usuarios] no se pudo enviar el aviso:', e.message); }
+}
+
+// ---- Foto de perfil (tabla cliente_foto)
+export async function guardarFoto(clienteId, { buffer, tipo }) {
+  const f = await ClienteFoto.findByPk(clienteId);
+  if (f) {
+    f.contenido = buffer; f.tipo = tipo; f.version += 1; f.actualizado_en = new Date();
+    await f.save();
+    return f.version;
+  }
+  return (await ClienteFoto.create({ cliente_id: clienteId, contenido: buffer, tipo })).version;
+}
+export const borrarFoto = (clienteId) => ClienteFoto.destroy({ where: { cliente_id: clienteId } });
+export async function infoFoto(clienteId) {
+  const f = await ClienteFoto.findByPk(clienteId, { attributes: ['version'] });
+  return f ? f.version : null;
+}
+export const vistaCompleta = async (u) => ({ ...vistaUsuario(u), foto_version: u.Cliente ? await infoFoto(u.Cliente.id) : null });
 
 export async function auditar(usuarioId, accion, entidad, entidadId, descripcion) {
   await RegistroAuditoria.create({ usuario_id: usuarioId, accion, entidad, entidad_id: entidadId ?? null, descripcion });

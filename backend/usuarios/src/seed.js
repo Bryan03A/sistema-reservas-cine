@@ -1,6 +1,15 @@
 import bcrypt from 'bcryptjs';
 import { Rol, Usuario, Cliente } from './model/entities/index.js';
 
+// Cuentas de demostración. NO se publican en el frontend: solo las devuelve POST /auth/dev-access con el comando secreto.
+// Deben coincidir con las cuentas creadas abajo.
+export const CUENTAS_DEMO = [
+  { username: 'admin', password: 'Admin123*', rol: 'ADMINISTRADOR', etiqueta: 'Administrador' },
+  { username: 'operador', password: 'Operador123*', rol: 'OPERADOR', etiqueta: 'Operador' },
+  { username: 'cliente1', password: 'Cliente123*', rol: 'CLIENTE', etiqueta: 'Cliente 1' },
+  { username: 'cliente2', password: 'Cliente123*', rol: 'CLIENTE', etiqueta: 'Cliente 2' },
+];
+
 // Archivo semilla: se ejecuta al levantar la aplicación; solo carga datos si la tabla rol está vacía.
 export async function seed() {
   if ((await Rol.count()) > 0) return;

@@ -40,6 +40,7 @@ services:
       JWT_ISSUER: ${JWT_ISSUER:-cine-usuarios}
       KEYS_DIR: /data/keys
       DEMO_MODE: ${DEMO_MODE:-true}
+      DEV_ACCESS_COMMAND: ${DEV_ACCESS_COMMAND:-/dev}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
       SERVICE_CLIENTS: '{"peliculas":"${PELICULAS_CLIENT_SECRET:-peliculas-secret}","reservas":"${RESERVAS_CLIENT_SECRET:-reservas-secret}"}'
       SMTP_HOST: ${SMTP_HOST:-}

@@ -29,6 +29,9 @@ export function errorHandler(err, req, res, next) {
   if (err instanceof AppError) {
     return res.status(err.status).json(body(err.status, err.code, err.message, req, err.details));
   }
+  if (err?.type === 'entity.too.large') {
+    return res.status(413).json(body(413, 'ARCHIVO_MUY_GRANDE', 'El archivo supera el tamaño máximo permitido', req));
+  }
   if (err?.type === 'entity.parse.failed') {
     return res.status(400).json(body(400, 'JSON_INVALIDO', 'El cuerpo no es un JSON válido', req));
   }

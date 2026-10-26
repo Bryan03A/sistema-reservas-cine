@@ -163,17 +163,17 @@ INSERT INTO public.asiento_funcion (id, funcion_id, asiento_id, reserva_id, esta
 -- Data for Name: boleto; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO public.boleto (id, reserva_id, asiento_funcion_id, asiento_id, precio, codigo_qr, estado, emitido_en, usado_en, etiqueta, seccion_tipo) VALUES (1, 1, 1, 1, 15.00, 'cB6LGT00ZPpooa6R._aGVb30zpPRiVS1EuFBMhF', 'ACTIVO', '2026-10-25 03:06:07.637+00', NULL, 'A1', 'VIP');
-INSERT INTO public.boleto (id, reserva_id, asiento_funcion_id, asiento_id, precio, codigo_qr, estado, emitido_en, usado_en, etiqueta, seccion_tipo) VALUES (2, 1, 2, 2, 15.00, 'UCk6s33FWlg9Fw-u.O-IMzgJJEX4jdKkSi_J1lQ', 'ACTIVO', '2026-10-25 03:06:07.637+00', NULL, 'A2', 'VIP');
-INSERT INTO public.boleto (id, reserva_id, asiento_funcion_id, asiento_id, precio, codigo_qr, estado, emitido_en, usado_en, etiqueta, seccion_tipo) VALUES (3, 2, 3, 30, 5.00, '3s-2aN6qqp6-wVlR.LZUoej402UC9krXIE6TOzO', 'ANULADO', '2026-10-25 03:06:07.659+00', NULL, 'E3', 'GENERAL');
+INSERT INTO public.boleto (id, reserva_id, asiento_funcion_id, asiento_id, precio, codigo_qr, estado, emitido_en, usado_en, etiqueta, seccion_tipo) VALUES (1, 1, 1, 1, 15.00, '81NQdpocA3WV-jOS.EH05AbWlzkb1k0Kr9Kl7cG', 'ACTIVO', '2026-10-26 01:48:01.749+00', NULL, 'A1', 'VIP');
+INSERT INTO public.boleto (id, reserva_id, asiento_funcion_id, asiento_id, precio, codigo_qr, estado, emitido_en, usado_en, etiqueta, seccion_tipo) VALUES (2, 1, 2, 2, 15.00, 'cLurYMpadL9Ip4yP.mGVf-edzMhdqyQO-sdfa3W', 'ACTIVO', '2026-10-26 01:48:01.749+00', NULL, 'A2', 'VIP');
+INSERT INTO public.boleto (id, reserva_id, asiento_funcion_id, asiento_id, precio, codigo_qr, estado, emitido_en, usado_en, etiqueta, seccion_tipo) VALUES (3, 2, 3, 30, 5.00, 'EUr-ylDMhOl9Nhpi.-64l-guAifCeuIa0ibXAO1', 'ANULADO', '2026-10-26 01:48:01.772+00', NULL, 'E3', 'GENERAL');
 
 
 --
 -- Data for Name: reserva; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-INSERT INTO public.reserva (id, codigo, cliente_id, funcion_id, gestionado_por, fecha_reserva, expira_en, estado, cantidad_boletos, total, moneda, confirmada_en, cancelada_en) VALUES (1, 'RSV-DEMO-0001', 3, 1, NULL, '2026-10-25 03:06:07.603+00', NULL, 'CONFIRMADA', 2, 30.00, 'USD', '2026-10-25 03:06:07.598+00', NULL);
-INSERT INTO public.reserva (id, codigo, cliente_id, funcion_id, gestionado_por, fecha_reserva, expira_en, estado, cantidad_boletos, total, moneda, confirmada_en, cancelada_en) VALUES (2, 'RSV-DEMO-0002', 4, 2, NULL, '2026-10-25 03:06:07.648+00', NULL, 'CANCELADA', 1, 5.00, 'USD', NULL, '2026-10-25 03:06:07.648+00');
+INSERT INTO public.reserva (id, codigo, cliente_id, funcion_id, gestionado_por, fecha_reserva, expira_en, estado, cantidad_boletos, total, moneda, confirmada_en, cancelada_en) VALUES (1, 'RSV-DEMO-0001', 3, 1, NULL, '2026-10-26 01:48:01.718+00', NULL, 'CONFIRMADA', 2, 30.00, 'USD', '2026-10-26 01:48:01.718+00', NULL);
+INSERT INTO public.reserva (id, codigo, cliente_id, funcion_id, gestionado_por, fecha_reserva, expira_en, estado, cantidad_boletos, total, moneda, confirmada_en, cancelada_en) VALUES (2, 'RSV-DEMO-0002', 4, 2, NULL, '2026-10-26 01:48:01.76+00', NULL, 'CANCELADA', 1, 5.00, 'USD', NULL, '2026-10-26 01:48:01.76+00');
 
 
 --

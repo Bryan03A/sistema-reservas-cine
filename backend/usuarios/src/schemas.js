@@ -17,23 +17,43 @@ export const crearUsuarioSchema = datosPersonales.extend({
   rol: z.enum(['ADMINISTRADOR', 'OPERADOR', 'CLIENTE']).default('CLIENTE'),
 });
 
+const passwordNueva = z.string().min(8, 'Mínimo 8 caracteres')
+  .regex(/[A-Z]/, 'Debe incluir una mayúscula').regex(/[a-z]/, 'Debe incluir una minúscula').regex(/\d/, 'Debe incluir un número');
+const confirmaPassword = (d) => !d.password_nueva || d.password_nueva === d.password_confirmacion;
+
+// Solo el administrador usa este esquema: puede editar cualquier dato personal (incluido DNI), el rol y fijar una contraseña nueva
 export const actualizarUsuarioSchema = datosPersonales.partial().extend({
   rol: z.enum(['ADMINISTRADOR', 'OPERADOR', 'CLIENTE']).optional(),
-});
+  password_nueva: passwordNueva.optional(),
+  password_confirmacion: z.string().optional(),
+}).refine(confirmaPassword, { message: 'La confirmación no coincide con la nueva contraseña', path: ['password_confirmacion'] });
 
 export const estadoSchema = z.object({ estado: z.enum(['ACTIVO', 'INACTIVO', 'BLOQUEADO']) });
 
+// El propio usuario puede editar solo estos campos (el DNI y el usuario NO se pueden cambiar)
+const opc = (max) => z.string().trim().max(max).regex(/^[^<>]*$/, 'No se permiten los caracteres < >');
 export const perfilSchema = z.object({
-  nacionalidad: z.string().trim().max(50).regex(/^[^<>]*$/).optional(),
-  direccion: z.string().trim().max(200).regex(/^[^<>]*$/).optional(),
-  telefono: z.string().trim().regex(/^[0-9+\-\s]{7,15}$/, 'Teléfono inválido').optional(),
-});
+  primer_nombre: texto(50).optional(),
+  segundo_nombre: opc(50).optional(),
+  apellido: texto(50).optional(),
+  nacionalidad: opc(50).optional(),
+  direccion: opc(200).optional(),
+  telefono: z.string().trim().regex(/^([0-9+\-\s]{7,15})?$/, 'Teléfono inválido').optional(),
+  correo: z.string().trim().toLowerCase().email('Correo inválido').max(120).optional(),
+}).strict();
 
 export const cambioPasswordSchema = z.object({
-  password_actual: z.string().min(1),
-  password_nueva: z.string().min(8, 'Mínimo 8 caracteres')
-    .regex(/[A-Z]/, 'Debe incluir una mayúscula').regex(/[a-z]/, 'Debe incluir una minúscula').regex(/\d/, 'Debe incluir un número'),
+  password_actual: z.string().min(1, 'Ingresa tu contraseña actual'),
+  password_nueva: passwordNueva,
+  password_confirmacion: z.string().min(1, 'Confirma la nueva contraseña'),
+}).refine((d) => d.password_nueva === d.password_confirmacion, { message: 'La confirmación no coincide con la nueva contraseña', path: ['password_confirmacion'] })
+  .refine((d) => d.password_nueva !== d.password_actual, { message: 'La nueva contraseña debe ser distinta de la actual', path: ['password_nueva'] });
+
+// Nombre de usuario elegido por el cliente: debe empezar con letra o número, así que un comando como "/dev" jamás es válido
+export const usernameSchema = z.object({
+  username: z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9._-]{3,29}$/, 'Usa de 4 a 30 caracteres: letras minúsculas, números, punto, guion o guion bajo, empezando por letra o número'),
 });
+export const RESERVADOS = ['admin', 'administrador', 'operador', 'root', 'sistema', 'soporte', 'cine', 'api', 'usuario', 'null', 'undefined'];
 
 export const auditoriaSchema = z.object({
   usuario_id: z.number().int(),

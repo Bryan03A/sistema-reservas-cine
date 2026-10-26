@@ -67,6 +67,17 @@ export const autenticar = asyncH(async (req, res, next) => {
   next();
 });
 
+// Middleware: token limitado ("setup") que se entrega solo al registrarse; sirve únicamente para elegir usuario y foto
+export const autenticarSetup = asyncH(async (req, res, next) => {
+  const header = req.headers.authorization || '';
+  if (!header.startsWith('Bearer ')) throw new AppError(401, 'NO_AUTENTICADO', 'Falta el token de configuración inicial');
+  let payload;
+  try { payload = await verifyToken(header.slice(7)); } catch { throw new AppError(401, 'TOKEN_INVALIDO', 'El plazo para configurar tu cuenta venció. Ingresa con las credenciales que te enviamos.'); }
+  if (payload.typ !== 'setup') throw new AppError(401, 'TOKEN_INVALIDO', 'Este token no sirve para configurar la cuenta');
+  req.setupUserId = Number(payload.sub);
+  next();
+});
+
 // Middleware: restringe por rol (validado siempre en el servidor)
 export const autorizar = (...roles) => (req, res, next) => {
   if (!req.auth || !roles.includes(req.auth.rol)) {

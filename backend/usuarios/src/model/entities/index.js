@@ -42,10 +42,20 @@ export const RegistroAuditoria = sequelize.define('RegistroAuditoria', {
   fecha_accion: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
 }, { tableName: 'registro_auditoria', timestamps: false });
 
+// Foto de perfil en tabla aparte (1 a 1 con cliente) para no cargar imágenes al consultar usuarios
+export const ClienteFoto = sequelize.define('ClienteFoto', {
+  cliente_id: { type: DataTypes.INTEGER, primaryKey: true },
+  contenido: { type: DataTypes.BLOB, allowNull: false },
+  tipo: { type: DataTypes.STRING(20), allowNull: false },
+  version: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+  actualizado_en: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+}, { tableName: 'cliente_foto', timestamps: false });
+
 Rol.hasMany(Usuario, { foreignKey: 'rol_id' });
 Usuario.belongsTo(Rol, { foreignKey: 'rol_id' });
 Usuario.hasOne(Cliente, { foreignKey: 'usuario_id' });
 Cliente.belongsTo(Usuario, { foreignKey: 'usuario_id' });
+Cliente.hasOne(ClienteFoto, { foreignKey: 'cliente_id', onDelete: 'CASCADE' });
 Usuario.hasMany(RegistroAuditoria, { foreignKey: 'usuario_id' });
 RegistroAuditoria.belongsTo(Usuario, { foreignKey: 'usuario_id' });
 

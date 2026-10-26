@@ -26,6 +26,11 @@ export const config = {
     from: env.MAIL_FROM || 'Cine Reservas <no-reply@cine.local>',
   },
   serviceClients: parseClients(),
+  // Comando secreto (solo administrador/desarrollador): escrito en el campo "Usuario" del login muestra los accesos de demostración.
+  // Empieza con "/" para que NUNCA sea un nombre de usuario válido. Cámbialo en .env (DEV_ACCESS_COMMAND).
+  devCommand: env.DEV_ACCESS_COMMAND || '/dev',
+  setupTtl: env.SETUP_TOKEN_TTL || '15m',
+  maxFotoBytes: Number(env.MAX_FOTO_BYTES) || 1024 * 1024,
   maxLoginFailures: 5,
   lockMinutes: 5,
 };

@@ -5,8 +5,8 @@ Los tres servicios y el frontend forman **un solo programa**. Lo que sigue se cu
 ## Dueño único de cada dato
 | Dato | Microservicio | Tablas |
 |---|---|---|
-| Identidad, roles, perfil del cliente, auditoría | Usuarios (3001) | `rol`, `usuario`, `cliente`, `registro_auditoria` |
-| Películas, funciones, salas, secciones, filas, asientos, precios | Películas (3002) | `pelicula`, `funcion`, `sala`, `seccion`, `fila`, `asiento` |
+| Identidad, roles, perfil del cliente, foto de perfil, auditoría | Usuarios (3001) | `rol`, `usuario`, `cliente`, `cliente_foto`, `registro_auditoria` |
+| Películas, pósters, funciones, salas, secciones, filas, asientos, precios | Películas (3002) | `pelicula`, `pelicula_imagen`, `funcion`, `sala`, `seccion`, `fila`, `asiento` |
 | Reservas, disponibilidad por función, boletos | Reservas (3003) | `reserva`, `asiento_funcion`, `boleto` |
 
 Las referencias entre servicios (`reserva.cliente_id`, `reserva.funcion_id`, `asiento_funcion.asiento_id`, `reserva.gestionado_por`) son **IDs lógicos sin clave foránea física**.
@@ -25,6 +25,14 @@ Las referencias entre servicios (`reserva.cliente_id`, `reserva.funcion_id`, `as
 - JWT firmado con **RS256**. La clave pública se publica en `GET /.well-known/jwks.json`; Películas y Reservas validan la firma sin compartir secretos.
 - Claims: `sub` (id de usuario), `username`, `rol`, `cliente_id`, `typ` (`access`), `iss`, `iat`, `exp`.
 - Llamadas de un usuario entre servicios: se reenvía su JWT. Operaciones internas (auditoría, cancelación por función): token `client_credentials` con rol `SERVICIO`.
+
+## Reglas de cuentas y perfil
+- Nombre de usuario: `^[a-z0-9][a-z0-9._-]{3,29}$`. Por empezar con letra o número, un comando de desarrollo (que empieza con `/`) jamás es un usuario válido. No se admiten nombres reservados (admin, operador, soporte…).
+- El token de configuración inicial (`typ: setup`, 15 min) solo permite elegir usuario y subir la foto, y solo antes del primer ingreso.
+- Edición propia (`PUT /clientes/me`): nombres, apellido, nacionalidad, teléfono, dirección y correo. El DNI, el usuario y el rol no se pueden cambiar por esta vía.
+- Edición por el administrador (`PUT /usuarios/:id`): cualquier dato personal, rol y contraseña nueva sin pedir la anterior.
+- Cambio de contraseña propio: actual + nueva + confirmación.
+- Imágenes: cuerpo binario (`image/jpeg|png|webp`); foto de perfil ≤ 1 MB, póster ≤ 2 MB; se valida la firma del archivo.
 
 ## Formato de error (los tres servicios)
 ```json
