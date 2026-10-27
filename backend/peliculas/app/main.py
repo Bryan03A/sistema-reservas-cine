@@ -22,7 +22,13 @@ app = FastAPI(
                 "el resto exige JWT emitido por el microservicio de Usuarios (botón Authorize).",
     lifespan=lifespan,
 )
-app.add_middleware(CORSMiddleware, allow_origins=config.CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=config.CORS_ORIGINS,
+    allow_origin_regex=config.CORS_LAN_REGEX if config.CORS_ALLOW_LAN else None,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 register_handlers(app)
 app.include_router(peliculas.router)
 app.include_router(funciones.router)

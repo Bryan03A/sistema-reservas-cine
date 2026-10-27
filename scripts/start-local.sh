@@ -18,9 +18,9 @@ stop_all() {
 # lanza un proceso totalmente desacoplado de la terminal: launch <carpeta> <log> <comando...>
 launch() { local dir="$1" log="$2"; shift 2; ( cd "$dir" && exec setsid nohup "$@" ) > "$log" 2>&1 < /dev/null & }
 
-COMMON=(JWT_ISSUER=cine-usuarios USUARIOS_URL=http://localhost:3001 PELICULAS_URL=http://localhost:3002 RESERVAS_URL=http://localhost:3003 RESERVA_TTL_SECONDS="${RESERVA_TTL_SECONDS:-300}")
+COMMON=(CORS_ALLOW_LAN=true JWT_ISSUER=cine-usuarios USUARIOS_URL=http://localhost:3001 PELICULAS_URL=http://localhost:3002 RESERVAS_URL=http://localhost:3003 RESERVA_TTL_SECONDS="${RESERVA_TTL_SECONDS:-300}")
 launch "$ROOT/backend/usuarios"  "$LOGS/usuarios.log"  env "${COMMON[@]}" DATABASE_URL="postgres://$PG/db_usuarios" KEYS_DIR="$ROOT/backend/usuarios/keys" PORT=3001 node src/server.js
 sleep 2
-launch "$ROOT/backend/peliculas" "$LOGS/peliculas.log" env "${COMMON[@]}" DATABASE_URL="postgresql+psycopg2://$PG/db_peliculas" PORT=3002 "$PY" -m uvicorn app.main:app --port 3002
+launch "$ROOT/backend/peliculas" "$LOGS/peliculas.log" env "${COMMON[@]}" DATABASE_URL="postgresql+psycopg2://$PG/db_peliculas" PORT=3002 "$PY" -m uvicorn app.main:app --host 0.0.0.0 --port 3002
 launch "$ROOT/backend/reservas"  "$LOGS/reservas.log"  env "${COMMON[@]}" DATABASE_URL="postgres://$PG/db_reservas" PORT=3003 node src/server.js
 echo "Servicios iniciando. Logs en $LOGS. Swagger: http://localhost:3001/docs  :3002/docs  :3003/docs"

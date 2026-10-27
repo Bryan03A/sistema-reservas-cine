@@ -1,14 +1,14 @@
-
 flowchart TB
     U["Cliente / Operador / Administrador"]
-    FE["Frontend React + Vite"]
+    FE["Frontend HTML + JavaScript<br/>Nginx<br/>Puertos 5173 HTTP / 5443 HTTPS"]
     AU["Microservicio Usuarios<br/>Node.js / Express<br/>Puerto 3001"]
-    PE["Microservicio Películas<br/>Ruby on Rails API<br/>Puerto 3002"]
-    RE["Microservicio Reservas<br/>Python / FastAPI<br/>Puerto 3003"]
+    PE["Microservicio Películas<br/>Python / FastAPI<br/>Puerto 3002"]
+    RE["Microservicio Reservas<br/>Node.js / Express<br/>Puerto 3003"]
+    SMTP["Servidor SMTP<br/>Correo de cuentas"]
 
-    DBU[("PostgreSQL<br/>cine_usuarios")]
-    DBP[("PostgreSQL<br/>cine_peliculas")]
-    DBR[("PostgreSQL<br/>cine_reservas")]
+    DBU[("PostgreSQL<br/>db_usuarios")]
+    DBP[("PostgreSQL<br/>db_peliculas")]
+    DBR[("PostgreSQL<br/>db_reservas")]
 
     U --> FE
     FE -->|"REST / JWT"| AU
@@ -19,6 +19,12 @@ flowchart TB
     PE --> DBP
     RE --> DBR
 
+    AU -->|"Credenciales y avisos"| SMTP
+
     RE -->|"Consultar funciones,<br/>asientos y precios"| PE
     PE -->|"Auditoria administrativa"| AU
     RE -->|"Auditoria de reservas"| AU
+    PE -->|"Aviso de funcion cancelada"| RE
+
+    PE -.->|"Token de servicio y JWKS"| AU
+    RE -.->|"Token de servicio y JWKS"| AU

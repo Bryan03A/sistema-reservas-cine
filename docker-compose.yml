@@ -42,6 +42,7 @@ services:
       DEMO_MODE: ${DEMO_MODE:-true}
       DEV_ACCESS_COMMAND: ${DEV_ACCESS_COMMAND:-/dev}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      CORS_ALLOW_LAN: ${CORS_ALLOW_LAN:-true}
       SERVICE_CLIENTS: '{"peliculas":"${PELICULAS_CLIENT_SECRET:-peliculas-secret}","reservas":"${RESERVAS_CLIENT_SECRET:-reservas-secret}"}'
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -64,6 +65,7 @@ services:
       SERVICE_CLIENT_ID: peliculas
       SERVICE_CLIENT_SECRET: ${PELICULAS_CLIENT_SECRET:-peliculas-secret}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      CORS_ALLOW_LAN: ${CORS_ALLOW_LAN:-true}
       TIMEZONE: America/Guayaquil
     ports: ["3002:3002"]
 
@@ -82,12 +84,17 @@ services:
       QR_SECRET: ${QR_SECRET:-cambia-este-secreto-del-qr}
       RESERVA_TTL_SECONDS: ${RESERVA_TTL_SECONDS:-300}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      CORS_ALLOW_LAN: ${CORS_ALLOW_LAN:-true}
     ports: ["3003:3003"]
 
   frontend:
-    image: nginx:alpine
+    build: ./nginx
     restart: unless-stopped
-    volumes: ["./frontend:/usr/share/nginx/html:ro"]
-    ports: ["5173:80"]
+    depends_on: [usuarios, peliculas, reservas]
+    environment:
+      EXTRA_IPS: ${EXTRA_IPS:-}        # IP(s) del PC en la red local para el certificado HTTPS, ej. 192.168.1.15
+      EXTRA_HOSTS: ${EXTRA_HOSTS:-}
+    volumes: ["./frontend:/usr/share/nginx/html:ro", "nginx_certs:/etc/nginx/certs"]
+    ports: ["5173:80", "5443:443"]
 
-volumes: { db_usuarios: {}, db_peliculas: {}, db_reservas: {}, usuarios_keys: {} }
+volumes: { db_usuarios: {}, db_peliculas: {}, db_reservas: {}, usuarios_keys: {}, nginx_certs: {} }

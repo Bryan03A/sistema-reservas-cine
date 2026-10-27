@@ -7,6 +7,8 @@ function parseClients() {
   return { peliculas: 'peliculas-secret', reservas: 'reservas-secret' };
 }
 
+const LAN_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|[a-z0-9-]+\.local)(:\d+)?$/i;
+
 export const config = {
   port: Number(env.PORT) || 3001,
   databaseUrl: env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/db_usuarios',
@@ -17,7 +19,12 @@ export const config = {
   // En DEMO_MODE las credenciales generadas también se devuelven en la respuesta del registro
   // (útil mientras no haya SMTP). Ponlo en "false" para producción.
   demoMode: env.DEMO_MODE !== 'false',
-  corsOrigins: (env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173').split(','),
+  // CORS_ALLOW_LAN=true acepta además cualquier origen de red local (192.168.x.x, 10.x.x.x, 172.16-31.x.x, *.local)
+  // para abrir el frontend desde el celular o la laptop de la misma red Wi-Fi. Ponlo en "false" fuera de la demostración.
+  corsOrigins: [
+    ...(env.CORS_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173').split(','),
+    ...(env.CORS_ALLOW_LAN === 'true' ? [LAN_ORIGIN] : []),
+  ],
   smtp: {
     host: env.SMTP_HOST || '',
     port: Number(env.SMTP_PORT) || 587,

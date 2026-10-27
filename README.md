@@ -141,3 +141,37 @@ sql                respaldo: crea y puebla cada base (generados desde las semill
 scripts            start-local.sh, smoke.mjs
 docs               contrato.md (contrato común entre servicios)
 ```
+
+## Abrir la aplicación desde el celular u otro dispositivo (misma red Wi-Fi)
+
+El PC y el celular deben estar en la **misma red Wi-Fi**. Hay dos formas de abrirla:
+
+| URL | Cámara para leer QR | Notas |
+|---|---|---|
+| `https://IP-DEL-PC:5443` | Sí | Recomendada. Certificado autofirmado: la primera vez el navegador muestra una advertencia y hay que aceptarla. |
+| `http://IP-DEL-PC:5173` | No (los navegadores exigen HTTPS) | Funciona igual, pero la validación de boletos se hace escribiendo el código. |
+
+En el PC sigue funcionando `http://localhost:5173`.
+
+### Pasos (Windows)
+1. Levanta el proyecto: `docker compose up --build`.
+2. Ejecuta una vez `scripts/abrir-red-local.ps1` (clic derecho > *Ejecutar con PowerShell*). Abre los puertos del firewall, guarda la IP del PC en `.env` (`EXTRA_IPS`), reinicia los contenedores si lo aceptas y te muestra las URL. Tu red Wi-Fi debe estar marcada como **Privada**.
+3. En el celular abre `https://192.168.x.x:5443` (la IP que muestre el script) y acepta la advertencia del certificado:
+   - **Android (Chrome):** *Avanzado* > *Continuar a la dirección*.
+   - **iPhone (Safari):** *Mostrar detalles* > *visitar este sitio web*.
+
+### Pasos manuales (Linux / macOS / sin el script)
+1. Averigua la IP del PC (`ip a`, `ipconfig getifaddr en0` o `ipconfig`) y abre los puertos 5173, 5443, 3001, 3002 y 3003 si tienes firewall.
+2. Escribe esa IP en `.env`: `EXTRA_IPS=192.168.1.15` (se incluye en el certificado HTTPS).
+3. Aplica los cambios: `docker compose up -d --build`.
+
+### Cómo funciona
+- El servicio `frontend` es un nginx con HTTPS. Genera un certificado autofirmado la primera vez (se guarda en el volumen `nginx_certs` y se regenera solo si cambia `EXTRA_IPS`).
+- Por HTTPS, nginx reenvía las APIs en el mismo origen (`/api/usuarios`, `/api/peliculas`, `/api/reservas`), por lo que no hay CORS ni contenido mixto. `frontend/config.js` lo detecta solo: por HTTPS usa `/api/...` y por HTTP usa los puertos 3001-3003 directos.
+- Si el router cambia la IP del PC, ejecuta de nuevo el script (o actualiza `EXTRA_IPS` y `docker compose up -d`); si no lo haces, el celular igual abre la página, pero el navegador mostrará un aviso adicional de nombre no coincidente.
+
+### Si ejecutas sin Docker (`scripts/start-local.sh`)
+Los servicios escuchan en toda la red, pero no hay nginx ni HTTPS: sirve la carpeta `frontend` con un servidor estático (por ejemplo `python3 -m http.server 5173 --bind 0.0.0.0 --directory frontend`) y úsala por HTTP.
+
+### Seguridad
+Es para demostración en red local. Fuera de ella pon `CORS_ALLOW_LAN=false` y `DEMO_MODE=false`, cambia los secretos del `.env` y usa un certificado real (por ejemplo, con un dominio y Let's Encrypt).
